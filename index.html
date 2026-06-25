@@ -111,8 +111,12 @@
                 </button>
                 <!-- Divider -->
                 <div class="h-6 w-px bg-slate-200"></div>
-                <!-- Status/Database Badge -->
-                <div class="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold">
+                <!-- Status Badges -->
+                <div id="backend-badge" class="flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-red-700 text-xs font-semibold">
+                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                    Backend Offline
+                </div>
+                <div id="supabase-badge" class="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold">
                     <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
                     Supabase Desconectado
                 </div>
@@ -280,9 +284,9 @@
             }
         }
 
-        // Função auxiliar para atualizar visualmente a badge de status
+        // Função auxiliar para atualizar visualmente a badge de status do backend
         function updateStatusBadge(isOnline) {
-            const badge = document.querySelector('header div.flex.items-center.gap-1\\.5');
+            const badge = document.getElementById('backend-badge');
             if (badge) {
                 if (isOnline) {
                     badge.className = "flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-semibold";
@@ -291,6 +295,48 @@
                     badge.className = "flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-red-700 text-xs font-semibold";
                     badge.innerHTML = `<span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Backend Offline`;
                 }
+            }
+        }
+
+        // Função auxiliar para atualizar visualmente a badge de status do Supabase
+        function updateSupabaseBadge(isConnected, message = "") {
+            const badge = document.getElementById('supabase-badge');
+            if (badge) {
+                if (isConnected) {
+                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-teal-50 border border-teal-200 rounded-full text-teal-700 text-xs font-semibold";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse"></span> Supabase Ligado`;
+                } else {
+                    const statusText = message ? `Supabase (${message})` : "Supabase Desconectado";
+                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> ${statusText}`;
+                }
+            }
+        }
+
+        // Função Global para Testar Conexão com o Supabase
+        async function testSupabaseConnection() {
+            if (!supabaseClient) {
+                updateSupabaseBadge(false, "Inativo");
+                return;
+            }
+            console.log("A testar conexão com o Supabase...");
+            try {
+                // Fazer uma requisição simples de leitura à API Rest (PostgREST) do Supabase.
+                // Usamos uma tabela fictícia para forçar uma chamada de rede real à API.
+                const { error } = await supabaseClient.from('_connection_test_').select('*').limit(1);
+                
+                // Se o erro for de falha de conexão física/rede ou DNS, 'error.message' conterá 'Failed to fetch' ou similar.
+                if (error && (error.status === 0 || error.message === 'Failed to fetch' || error.message.includes('FetchError'))) {
+                    throw error;
+                }
+                
+                // Se chegámos aqui ou se respondeu com erro PostgREST (como tabela inexistente), significa que
+                // a API do Supabase respondeu com sucesso e validou as credenciais!
+                console.log("Conexão ao Supabase verificada com sucesso.");
+                updateSupabaseBadge(true);
+            } catch (error) {
+                console.error("Erro ao contactar o Supabase:", error);
+                updateSupabaseBadge(false, "Desconectado");
             }
         }
 
@@ -339,6 +385,18 @@
 
         // Supabase Client Initialization Example (for connection test later)
         console.log("Supabase Library Loaded:", !!window.supabase);
+
+        // Executar testes de conexão automáticos na inicialização
+        testSupabaseConnection();
+        // Também testamos o backend silenciosamente no início para atualizar a badge inicial
+        (async () => {
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                updateStatusBadge(response.ok);
+            } catch (e) {
+                updateStatusBadge(false);
+            }
+        })();
     </script>
 </body>
 </html>

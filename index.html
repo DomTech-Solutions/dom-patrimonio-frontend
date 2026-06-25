@@ -99,6 +99,11 @@
             </div>
             
             <div class="flex items-center gap-4">
+                <!-- Test Backend Button -->
+                <button onclick="testBackend()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-700 text-xs font-semibold transition-colors" title="Testar conexão com o backend local">
+                    <i data-lucide="server" class="w-4 h-4 text-slate-500"></i>
+                    <span>Testar Backend</span>
+                </button>
                 <!-- Notifications -->
                 <button class="relative p-1.5 text-slate-400 hover:text-slate-600 transition-colors">
                     <i data-lucide="bell" class="w-6 h-6"></i>
@@ -233,6 +238,62 @@
 
     <!-- Script Block for Initialization and Demo Data -->
     <script>
+        // Configurações de Conexão (Supabase & Backend)
+        const SUPABASE_URL = 'https://seu-projeto-supabase.supabase.co'; // Substituir com a URL real do seu Supabase
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sua-chave-anon-aqui'; // Substituir com a Anon Key real do seu Supabase
+        const BACKEND_URL = 'http://localhost:3020';
+
+        // Inicialização do Cliente Supabase
+        let supabaseClient = null;
+        try {
+            if (SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('seu-projeto-supabase')) {
+                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log("Cliente Supabase instanciado com sucesso.");
+            } else {
+                console.warn("Chaves do Supabase não configuradas. Cliente não instanciado.");
+            }
+        } catch (error) {
+            console.error("Erro ao instanciar o cliente Supabase:", error);
+        }
+
+        // Função Global para Testar Conexão com o Backend Local
+        async function testBackend() {
+            console.log(`A testar conexão com o backend em ${BACKEND_URL}/health...`);
+            try {
+                const response = await fetch(`${BACKEND_URL}/health`);
+                if (response.ok) {
+                    const data = await response.json().catch(() => null) || await response.text();
+                    console.log("Resposta do Backend:", data);
+                    alert(`✅ Conexão com o Backend estabelecida com sucesso!\nStatus: ${response.status}\nDados: ${JSON.stringify(data)}`);
+                    
+                    // Se conectou, atualiza a badge visual para "Online"
+                    updateStatusBadge(true);
+                } else {
+                    console.error(`Erro do Backend: ${response.status} ${response.statusText}`);
+                    alert(`❌ Erro ao conectar ao Backend.\nStatus: ${response.status} (${response.statusText})`);
+                    updateStatusBadge(false);
+                }
+            } catch (error) {
+                console.error("Erro na requisição ao Backend:", error);
+                alert(`❌ Erro de Conexão: Não foi possível alcançar o backend em ${BACKEND_URL}/health.\nCertifique-se de que o backend local está a correr.`);
+                updateStatusBadge(false);
+            }
+        }
+
+        // Função auxiliar para atualizar visualmente a badge de status
+        function updateStatusBadge(isOnline) {
+            const badge = document.querySelector('header div.flex.items-center.gap-1\\.5');
+            if (badge) {
+                if (isOnline) {
+                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-semibold";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Backend Online`;
+                } else {
+                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-red-700 text-xs font-semibold";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Backend Offline`;
+                }
+            }
+        }
+
         // Initialize Lucide Icons
         lucide.createIcons();
 

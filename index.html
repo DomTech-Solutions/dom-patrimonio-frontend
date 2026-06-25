@@ -239,16 +239,16 @@
     <!-- Script Block for Initialization and Demo Data -->
     <script>
         // Configurações de Conexão (Supabase & Backend)
-        const SUPABASE_URL = 'https://seu-projeto-supabase.supabase.co'; // Substituir com a URL real do seu Supabase
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.sua-chave-anon-aqui'; // Substituir com a Anon Key real do seu Supabase
+        const SUPABASE_URL = 'https://wpgrsalqbupakxaozozq.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'sb_publishable_v69jxc1IQlQrUJ6RHP-uHQ_nbsiUhIY'; 
         const BACKEND_URL = 'http://localhost:3020';
 
         // Inicialização do Cliente Supabase
         let supabaseClient = null;
         try {
-            if (SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes('seu-projeto-supabase')) {
+            if (SUPABASE_URL && SUPABASE_ANON_KEY) {
                 supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                console.log("Cliente Supabase instanciado com sucesso.");
+                console.log("Cliente Supabase instanciado com sucesso:", SUPABASE_URL);
             } else {
                 console.warn("Chaves do Supabase não configuradas. Cliente não instanciado.");
             }

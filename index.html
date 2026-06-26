@@ -1,416 +1,1519 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dom Património - Gestão de Ativos</title>
-    <!-- Favicon Moderno (Emoji SVG) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>">
-    <!-- Tailwind CSS CDN -->
+    <title>Dom Património | Gestão Financeira</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         tailwind.config = {
             theme: {
                 extend: {
                     colors: {
-                        primary: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                        }
+                        primary: '#1e293b',
+                        secondary: '#334155',
+                        highlight: '#0284c7',
+                        danger: '#ef4444',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        pending: '#94a3b8'
                     }
                 }
             }
         }
     </script>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Supabase JS v2 CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- Configurações de Ambiente (config.js) -->
-    <script src="config.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-        }
+        body { font-family: 'Inter', system-ui, sans-serif; background-color: #f1f5f9; color: #334155; overflow-x: hidden; }
+        .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; font-weight: 600; }
+        .tab-inactive { color: #94a3b8; font-weight: 500; }
+        .tab-inactive:hover { color: #f8fafc; }
+        canvas { cursor: pointer; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .child-row td { background-color: #f8fafc; border-top: none !important; }
+        .parent-row td { border-bottom: none !important; }
+        optgroup { font-weight: 700; color: #1e293b; background: #f8fafc; }
+        option { font-weight: 500; color: #475569; background: #ffffff; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 flex h-screen overflow-hidden">
+<body>
 
-    <!-- Sidebar -->
-    <aside class="w-64 bg-slate-900 text-slate-100 flex flex-col justify-between hidden md:flex">
-        <div>
-            <!-- Logo / Brand -->
-            <div class="h-16 flex items-center px-6 border-b border-slate-800 gap-2">
-                <i data-lucide="building-2" class="text-primary-500 w-6 h-6"></i>
-                <span class="text-lg font-bold tracking-tight">Dom Património</span>
+    <div id="view-setup" class="fixed inset-0 z-[60] bg-slate-900 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-8 text-center animate-fade-in border-t-4 border-red-500">
+            <i data-lucide="database" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
+            <h2 class="text-2xl font-bold text-primary mb-2">Configure o Dom Património</h2>
+            <p class="text-slate-600 text-sm mb-4 text-left">Insira as suas chaves do Supabase no código-fonte deste ficheiro HTML para ativar a Nuvem.</p>
+            <ol class="text-sm text-slate-500 text-left list-decimal list-inside space-y-2 mb-6 bg-slate-50 p-4 rounded border border-slate-200">
+                <li>Abra este ficheiro <b>index.html</b> no editor de código.</li>
+                <li>Procure por <code>const SUPABASE_URL</code>.</li>
+                <li>Cole a sua URL e a sua Chave Pública (Anon Key).</li>
+                <li>Grave e recarregue esta página.</li>
+            </ol>
+            <button onclick="location.reload()" class="bg-primary hover:bg-secondary text-white font-bold py-3 px-6 rounded-lg w-full transition-colors">Já configurei, recarregar!</button>
+        </div>
+    </div>
+
+    <div id="view-loading" class="fixed inset-0 z-[55] bg-slate-900 hidden flex-col items-center justify-center p-4">
+        <i data-lucide="loader-2" class="w-12 h-12 text-highlight animate-spin mb-4"></i>
+        <p class="text-white font-semibold text-lg" id="loadingText">A conectar à Nuvem...</p>
+        <p class="text-slate-400 text-sm mt-2">A carregar o seu património seguro.</p>
+    </div>
+
+    <div id="view-auth" class="fixed inset-0 z-50 bg-slate-900 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-8 text-center animate-fade-in relative overflow-hidden">
+            <div class="w-16 h-16 bg-highlight rounded-full flex items-center justify-center mx-auto mb-4 text-white shadow-lg">
+                <i data-lucide="landmark" class="w-8 h-8"></i>
             </div>
-            
-            <!-- Navigation Links -->
-            <nav class="mt-6 px-4 space-y-1">
-                <a href="#" class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg bg-primary-600 text-white transition-colors">
-                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
-                    Dashboard
-                </a>
-                <a href="#" class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                    <i data-lucide="package" class="w-5 h-5"></i>
-                    Ativos / Património
-                </a>
-                <a href="#" class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                    <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
-                    Movimentações
-                </a>
-                <a href="#" class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                    <i data-lucide="users" class="w-5 h-5"></i>
-                    Utilizadores
-                </a>
-                <a href="#" class="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors">
-                    <i data-lucide="settings" class="w-5 h-5"></i>
-                    Definições
-                </a>
+            <h2 class="text-2xl font-bold text-primary mb-2">Dom Património</h2>
+            <p class="text-slate-500 mb-8 text-sm">Selecione o seu perfil financeiro. Os dados são estruturados relacionalmente na nuvem.</p>
+
+            <div class="space-y-4">
+                <button onclick="selectProfile('Daniel')" class="w-full bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-highlight text-slate-800 font-bold py-4 px-4 rounded-lg flex justify-between items-center transition-colors">
+                    <span class="flex items-center gap-3"><i data-lucide="user" class="text-highlight"></i> Perfil: Daniel</span>
+                    <i data-lucide="chevron-right" class="text-slate-400"></i>
+                </button>
+                <button onclick="selectProfile('Esposa')" class="w-full bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-500 text-slate-800 font-bold py-4 px-4 rounded-lg flex justify-between items-center transition-colors">
+                    <span class="flex items-center gap-3"><i data-lucide="user" class="text-emerald-500"></i> Perfil: Esposa</span>
+                    <i data-lucide="chevron-right" class="text-slate-400"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-primary text-white py-6 shadow-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="landmark" class="w-7 h-7 text-highlight"></i>
+                    Dom Património
+                </h1>
+                <p class="text-slate-400 text-sm mt-1 hidden md:block">Controlo e Independência Financeira <i data-lucide="cloud" class="w-3 h-3 inline text-emerald-400 ml-1"></i></p>
+            </div>
+            <div class="flex gap-4 items-center">
+                <div class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-600 shadow-inner" title="Sincronizado via Supabase">
+                    <i data-lucide="cloud-check" class="w-4 h-4 text-emerald-400"></i>
+                    <span id="activeProfileName" class="text-xs font-semibold text-white uppercase">Perfil</span>
+                </div>
+                <button onclick="logoutProfile()" class="text-xs text-slate-400 hover:text-white transition-colors underline" title="Trocar Perfil">
+                    Sair
+                </button>
+                <button onclick="clearAllData()" class="ml-2 text-xs bg-secondary hover:bg-red-600 text-white py-2 px-3 rounded transition-colors flex items-center gap-1 border border-slate-600 hover:border-red-500">
+                    <i data-lucide="trash-2" class="w-3 h-3"></i> Limpar Nuvem
+                </button>
+                <button onclick="window.testBackend()" class="ml-2 text-xs bg-slate-800 hover:bg-highlight text-white py-2 px-3 rounded transition-colors flex items-center gap-1 border border-slate-600">
+                    <i data-lucide="server" class="w-3 h-3"></i> Testar API
+                </button>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+            <nav class="flex space-x-8 overflow-x-auto" aria-label="Tabs">
+                <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-active pb-3 px-1 text-sm flex items-center gap-2 whitespace-nowrap">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Visão Geral & Extrato
+                </button>
+                <button onclick="switchTab('importacao')" id="tab-importacao" class="tab-inactive pb-3 px-1 text-sm flex items-center gap-2 whitespace-nowrap">
+                    <i data-lucide="upload-cloud" class="w-4 h-4"></i> Gestão de Dados (CSV/Manual)
+                </button>
+                <button onclick="switchTab('config')" id="tab-config" class="tab-inactive pb-3 px-1 text-sm flex items-center gap-2 whitespace-nowrap">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Categorias & Regras
+                </button>
             </nav>
         </div>
+    </header>
 
-        <!-- User / Footer Profile -->
-        <div class="p-4 border-t border-slate-800">
-            <div class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-full bg-primary-600 flex items-center justify-center text-white font-semibold">
-                    JD
-                </div>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- ==================== TAB: VISÃO GERAL ==================== -->
+        <div id="view-dashboard" class="space-y-8 animate-fade-in block">
+
+            <div class="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6">
                 <div>
-                    <p class="text-sm font-medium text-white">João Silva</p>
-                    <p class="text-xs text-slate-400">Gestor de Património</p>
+                    <h2 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-highlight"></i> Fluxo de Caixa Mensal
+                    </h2>
+                    <p class="text-sm text-slate-500 mt-1" id="dashMonthSubtitle">Clique num mês no gráfico para filtrar todos os dados abaixo.</p>
                 </div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col overflow-y-auto">
-        <!-- Top Bar -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10">
-            <div class="flex items-center gap-4">
-                <button class="md:hidden text-slate-600 hover:text-slate-900">
-                    <i data-lucide="menu" class="w-6 h-6"></i>
-                </button>
-                <h1 class="text-xl font-semibold text-slate-800">Painel Principal</h1>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                <!-- Test Backend Button -->
-                <button onclick="testBackend()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg text-slate-700 text-xs font-semibold transition-colors" title="Testar conexão com o backend local">
-                    <i data-lucide="server" class="w-4 h-4 text-slate-500"></i>
-                    <span>Testar Backend</span>
-                </button>
-                <!-- Notifications -->
-                <button class="relative p-1.5 text-slate-400 hover:text-slate-600 transition-colors">
-                    <i data-lucide="bell" class="w-6 h-6"></i>
-                    <span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
-                </button>
-                <!-- Divider -->
-                <div class="h-6 w-px bg-slate-200"></div>
-                <!-- Status Badges -->
-                <div id="backend-badge" class="flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-red-700 text-xs font-semibold">
-                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                    Backend Offline
-                </div>
-                <div id="supabase-badge" class="flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold">
-                    <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                    Supabase Desconectado
-                </div>
-            </div>
-        </header>
-
-        <!-- Dashboard Content -->
-        <div class="p-6 max-w-7xl w-full mx-auto space-y-6">
-            <!-- Welcome Section -->
-            <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
-                <div>
-                    <h2 class="text-2xl font-bold text-slate-900">Bem-vindo ao Dom Património</h2>
-                    <p class="text-slate-500 mt-1">Aqui pode gerir, monitorizar e acompanhar a depreciação e alocação de todos os ativos da organização.</p>
-                </div>
-                <button class="px-4 py-2.5 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors flex items-center gap-2 shadow-sm">
-                    <i data-lucide="plus" class="w-5 h-5"></i>
-                    Registar Ativo
-                </button>
-            </div>
-
-            <!-- Stats Grid -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Card 1 -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500">Total de Ativos</p>
-                        <h3 class="text-3xl font-bold text-slate-900 mt-1">1,248</h3>
-                        <span class="text-emerald-600 text-xs font-semibold mt-1 inline-flex items-center gap-0.5">
-                            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +12% este mês
-                        </span>
-                    </div>
-                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                        <i data-lucide="box" class="w-6 h-6"></i>
-                    </div>
-                </div>
-                <!-- Card 2 -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500">Valor Total Atribuído</p>
-                        <h3 class="text-3xl font-bold text-slate-900 mt-1">€458,200</h3>
-                        <span class="text-emerald-600 text-xs font-semibold mt-1 inline-flex items-center gap-0.5">
-                            <i data-lucide="trending-up" class="w-3.5 h-3.5"></i> +4.2% depreciação anual
-                        </span>
-                    </div>
-                    <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                        <i data-lucide="euro" class="w-6 h-6"></i>
-                    </div>
-                </div>
-                <!-- Card 3 -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500">Em Manutenção</p>
-                        <h3 class="text-3xl font-bold text-slate-900 mt-1">14</h3>
-                        <span class="text-amber-600 text-xs font-semibold mt-1 inline-flex items-center gap-0.5">
-                            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Requer atenção
-                        </span>
-                    </div>
-                    <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                        <i data-lucide="wrench" class="w-6 h-6"></i>
-                    </div>
-                </div>
-                <!-- Card 4 -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <p class="text-sm font-medium text-slate-500">Taxa de Utilização</p>
-                        <h3 class="text-3xl font-bold text-slate-900 mt-1">94.2%</h3>
-                        <span class="text-slate-500 text-xs mt-1 inline-flex items-center gap-0.5">
-                            Estável vs mês passado
-                        </span>
-                    </div>
-                    <div class="p-3 bg-purple-50 text-purple-600 rounded-xl">
-                        <i data-lucide="percent" class="w-6 h-6"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Visual Charts & Assets List -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- Chart Card (Col-span 2) -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
-                    <div class="flex items-center justify-between mb-4">
-                        <h4 class="font-bold text-slate-900">Aquisição de Ativos vs Depreciação</h4>
-                        <select class="text-sm border-slate-200 rounded-lg bg-slate-50 p-1.5 text-slate-600 outline-none">
-                            <option>Últimos 6 meses</option>
-                            <option>Este ano</option>
+                <div class="flex gap-4 items-center mt-4 sm:mt-0 flex-wrap justify-end">
+                    <button id="btnLimparMes" onclick="clearMonthFilter()" class="hidden text-slate-500 hover:text-red-500 flex items-center gap-1 text-sm font-semibold bg-slate-100 hover:bg-red-50 px-3 py-1.5 rounded transition-colors">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i> Limpar Mês
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-slate-600">Base:</span>
+                        <select id="dashBaseFilter" class="bg-slate-50 border border-slate-200 text-sm rounded-lg focus:ring-highlight focus:border-highlight p-2 outline-none min-w-[150px]" onchange="resetAndRenderDashboard()">
+                            <option value="pagamento">Data de Pagamento</option>
+                            <option value="lancamento">Data de Lançamento</option>
                         </select>
                     </div>
-                    <div class="h-64">
-                        <canvas id="assetsChart"></canvas>
+                </div>
+            </div>
+
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <div class="relative h-56 w-full">
+                    <canvas id="monthlyBarChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Cards de Fluxo de Caixa -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-emerald-50 rounded-xl p-5 shadow-sm border border-emerald-100 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-emerald-600 font-bold uppercase tracking-wider mb-1">Total de Entradas</p>
+                            <h3 class="text-2xl font-bold text-emerald-800" id="lblReceitas">R$ 0,00</h3>
+                        </div>
+                        <div class="p-2 bg-emerald-100 rounded-lg text-emerald-600"><i data-lucide="trending-up"></i></div>
                     </div>
                 </div>
 
-                <!-- Recent Activities (Col-span 1) -->
-                <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <h4 class="font-bold text-slate-900 mb-4">Atividade Recente</h4>
-                    <div class="space-y-4">
-                        <div class="flex gap-3">
-                            <div class="w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
+                <div class="bg-red-50 rounded-xl p-5 shadow-sm border border-red-100 card-hover">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-red-600 font-bold uppercase tracking-wider mb-1" id="tituloCustoTotal">Total de Saídas</p>
+                            <h3 class="text-2xl font-bold text-red-800" id="lblTotal">R$ 0,00</h3>
+                        </div>
+                        <div class="p-2 bg-red-100 rounded-lg text-red-600"><i data-lucide="trending-down"></i></div>
+                    </div>
+                    <div class="mt-3 w-full bg-red-200 rounded-full h-1.5 flex overflow-hidden">
+                        <div id="barFixosPerc" class="bg-highlight h-1.5" style="width: 0%" title="Fixos"></div>
+                        <div id="barVariaveisPerc" class="bg-warning h-1.5" style="width: 0%" title="Variáveis"></div>
+                        <div id="barPendentesPerc" class="bg-slate-400 h-1.5" style="width: 0%" title="Pendentes"></div>
+                    </div>
+                    <p class="text-[10px] text-red-500 mt-1 font-medium text-right" id="lblPercRatio">0% Fixos / 0% Var / 0% Pend.</p>
+                </div>
+
+                <div class="bg-primary rounded-xl p-5 shadow-sm border border-secondary card-hover text-white">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs text-slate-300 font-bold uppercase tracking-wider mb-1">Saldo do Período</p>
+                            <h3 class="text-2xl font-bold" id="lblSaldo">R$ 0,00</h3>
+                        </div>
+                        <div class="p-2 bg-secondary rounded-lg text-white"><i data-lucide="scale"></i></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Cards Detalhamento de Despesas -->
+            <section class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 card-hover border-l-4 border-l-highlight">
+                    <p class="text-[11px] text-slate-500 font-bold uppercase mb-1">Despesas Fixas</p>
+                    <h3 class="text-lg font-bold text-slate-800" id="lblFixos">R$ 0,00</h3>
+                    <p class="text-[10px] text-slate-400 mt-1 font-medium" id="lblFixosPerc">0% do total</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 card-hover border-l-4 border-l-warning">
+                    <p class="text-[11px] text-slate-500 font-bold uppercase mb-1">Despesas Variáveis</p>
+                    <h3 class="text-lg font-bold text-slate-800" id="lblVariaveis">R$ 0,00</h3>
+                    <p class="text-[10px] text-slate-400 mt-1 font-medium" id="lblVarPerc">0% do total</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 card-hover border-l-4 border-l-slate-400">
+                    <p class="text-[11px] text-slate-500 font-bold uppercase mb-1">Pendentes</p>
+                    <h3 class="text-lg font-bold text-slate-800" id="lblPendentes">R$ 0,00</h3>
+                    <p class="text-[10px] text-slate-400 mt-1 font-medium" id="lblPenPerc">0% do total</p>
+                </div>
+                 <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 card-hover border-l-4 border-l-purple-500">
+                    <p class="text-[11px] text-slate-500 font-bold uppercase mb-1">Em Parcelas</p>
+                    <h3 class="text-lg font-bold text-slate-800" id="lblParcelas">R$ 0,00</h3>
+                    <p class="text-[10px] text-slate-400 mt-1 font-medium">Contabilizado no total</p>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-1">
+                    <h3 class="text-lg font-bold mb-2 flex items-center gap-2 text-primary">
+                        <i data-lucide="pie-chart" class="w-5 h-5 text-highlight"></i> Natureza das Despesas
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Clique no gráfico para filtrar</p>
+                    <div class="relative h-72 w-full flex justify-center">
+                        <canvas id="expensesPieChart"></canvas>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                    <h3 class="text-lg font-bold mb-2 flex items-center gap-2 text-primary">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-highlight"></i> Top Despesas por Categoria
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">Passe o rato para ver as subcategorias. Clique numa barra para filtrar.</p>
+                    <div class="relative h-72 w-full">
+                        <canvas id="categoryBarChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="border-b border-slate-200 bg-slate-50 p-6 flex flex-col md:flex-row justify-between md:items-start gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold flex items-center gap-2 text-primary" id="tableTitle">
+                            <i data-lucide="list" class="w-6 h-6 text-highlight"></i> Extrato do Período
+                        </h2>
+                        <div id="activeFilterBadge" class="hidden flex items-center gap-2 mt-3">
+                            <span class="text-sm font-medium text-slate-500">Filtrando por:</span>
+                            <span id="activeFilterName" class="bg-highlight text-white text-xs font-bold px-2 py-1 rounded">Categoria</span>
+                            <button onclick="clearChartFilter()" class="text-slate-400 hover:text-red-500 ml-1 flex items-center gap-1 text-xs font-semibold transition-colors" title="Limpar Filtro">
+                                <i data-lucide="x-circle" class="w-4 h-4"></i> Limpar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2 md:mt-0">
+                        <i data-lucide="filter" class="w-4 h-4 text-slate-400"></i>
+                        <select id="tableSubcatFilter" onchange="applyTableSubcatFilter()" class="bg-white border border-slate-300 text-sm rounded px-3 py-1.5 outline-none focus:ring-1 focus:ring-highlight focus:border-highlight text-slate-600">
+                            <option value="all">Todas as Subcategorias</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold">Lançamento</th>
+                                <th class="px-6 py-3 font-semibold">Pagamento</th>
+                                <th class="px-6 py-3 w-1/3 font-semibold">Descrição</th>
+                                <th class="px-6 py-3 font-semibold">Categoria / Subcat</th>
+                                <th class="px-6 py-3 text-center font-semibold">Tipo</th>
+                                <th class="px-6 py-3 text-center font-semibold">Parcela</th>
+                                <th class="px-6 py-3 text-right font-semibold">Valor</th>
+                                <th class="px-4 py-3 text-center font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionsTableBody" class="divide-y divide-slate-100"></tbody>
+                        <tfoot class="bg-slate-50 font-bold text-slate-800 border-t border-slate-200">
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-right text-slate-600">Soma dos itens exibidos:</td>
+                                <td id="transactionsTotal" class="px-6 py-4 text-right text-highlight text-lg">R$ 0,00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="p-4 border-t border-slate-100 flex items-center justify-between bg-white">
+                    <span class="text-sm text-slate-500" id="tablePageInfo">Mostrando 1-10 de 50</span>
+                    <div class="flex gap-2">
+                        <button onclick="changeTablePage(-1)" id="btnPrevPage" class="px-4 py-2 border border-slate-200 rounded text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Anterior</button>
+                        <button onclick="changeTablePage(1)" id="btnNextPage" class="px-4 py-2 border border-slate-200 rounded text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">Próxima</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- ==================== TAB: IMPORTAÇÃO E INSERÇÃO ==================== -->
+        <div id="view-importacao" class="space-y-8 hidden animate-fade-in">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- CSV Upload -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center upload-area">
+                    <div class="mb-4 flex justify-center">
+                        <div class="p-4 bg-sky-50 rounded-full text-highlight border border-sky-100">
+                            <i data-lucide="file-spreadsheet" class="w-8 h-8"></i>
+                        </div>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800 mb-2">Importar Faturas Cartão (CSV)</h2>
+                    <p class="text-slate-500 mb-6 text-sm">O Mês de Pagamento é inferido automaticamente do nome do ficheiro (ex: Fatura2026-02-01.csv -> Pagamento 02/2026). Cartões importam sempre como <b>Despesas</b>.</p>
+
+                    <input type="file" id="csvFileInput" multiple accept=".csv" class="hidden" />
+                    <button onclick="document.getElementById('csvFileInput').click()" class="bg-primary hover:bg-secondary text-white font-semibold py-2 px-6 rounded-lg shadow-sm transition-colors w-full flex items-center justify-center gap-2">
+                        <i data-lucide="folder-open" class="w-4 h-4"></i> Selecionar Ficheiros CSV
+                    </button>
+                </section>
+
+                <!-- Inserção Manual -->
+                <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                    <div class="mb-4 flex items-center gap-3">
+                        <div class="p-3 bg-green-50 rounded-full text-success border border-green-100">
+                            <i data-lucide="pen-tool" class="w-6 h-6"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-slate-800">Lançamento Manual (Receitas/Despesas)</h2>
+                    </div>
+
+                    <form id="formManual" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <p class="text-sm font-semibold text-slate-800">MacBook Pro M3 Registado</p>
-                                <p class="text-xs text-slate-400">Atribuído a Ana Rodrigues por Administrador</p>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">Data de Pagamento / Recebimento</label>
+                                <input type="date" id="inDataPagamento" required class="w-full bg-slate-50 border border-slate-300 text-sm rounded-lg p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">Data de Lançamento</label>
+                                <input type="date" id="inDataLancamento" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-lg p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
                             </div>
                         </div>
-                        <div class="flex gap-3">
-                            <div class="w-2 h-2 rounded-full bg-amber-500 mt-2"></div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 sm:col-span-1">
+                                <label class="block text-xs font-medium text-slate-700 mb-1">Descrição</label>
+                                <input type="text" id="inDesc" required placeholder="Ex: Conta de Luz / Salário" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-lg p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                            </div>
                             <div>
-                                <p class="text-sm font-semibold text-slate-800">Monitor Dell em Manutenção</p>
-                                <p class="text-xs text-slate-400">Enviado para reparação de pixéis mortos</p>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">Valor (R$)</label>
+                                <input type="number" id="inValor" step="0.01" required placeholder="0.00" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-lg p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
                             </div>
                         </div>
-                        <div class="flex gap-3">
-                            <div class="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                            <div>
-                                <p class="text-sm font-semibold text-slate-800">Alocação de Licença Adobe CC</p>
-                                <p class="text-xs text-slate-400">Renovação e alocação efetuada</p>
+
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Categoria (Opcional - Sobrepõe regras automáticas)</label>
+                            <select id="inCat" class="w-full bg-slate-50 border border-slate-300 text-sm rounded-lg p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                            </select>
+                        </div>
+
+                        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="inRecorrente" onchange="document.getElementById('recorrenteContainer').classList.toggle('hidden', !this.checked)" class="w-4 h-4 text-highlight bg-white border-slate-300 rounded focus:ring-highlight focus:ring-2 cursor-pointer">
+                                <label for="inRecorrente" class="text-sm font-medium text-slate-700 cursor-pointer">Este é um lançamento recorrente?</label>
+                            </div>
+                            <div id="recorrenteContainer" class="hidden flex items-center gap-3 mt-3">
+                                <label class="text-xs text-slate-600">Repetir por:</label>
+                                <input type="number" id="inMesesRepeticao" value="12" min="2" max="120" class="w-20 bg-white border border-slate-300 text-sm rounded p-1.5 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                                <span class="text-xs text-slate-500">meses (projeta no futuro, ajustando fins de semana)</span>
                             </div>
                         </div>
+
+                        <button type="submit" class="w-full bg-highlight hover:bg-sky-700 text-white font-semibold py-3 px-4 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="plus" class="w-5 h-5"></i> Adicionar à Nuvem
+                        </button>
+                    </form>
+                </section>
+            </div>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mt-8">
+                <div class="mb-4 flex items-center gap-3">
+                    <div class="p-3 bg-slate-100 rounded-full text-slate-600 border border-slate-200">
+                        <i data-lucide="hard-drive" class="w-6 h-6"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-800">Ficheiros Sincronizados</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th class="px-6 py-3 font-semibold">Nome do Ficheiro / Origem</th>
+                                <th class="px-6 py-3 text-center font-semibold">Lançamentos</th>
+                                <th class="px-6 py-3 text-right font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableFilesBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- ==================== TAB: CONFIGURAÇÕES E REGRAS ==================== -->
+        <div id="view-config" class="space-y-8 hidden animate-fade-in">
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="tags" class="w-6 h-6 text-highlight"></i>
+                            Cadastro Base de Categorias
+                        </h2>
+                        <p class="text-slate-500 text-sm mt-1">A fonte da verdade. Defina as suas categorias e a sua natureza (Fixo, Variável ou Receita).</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                        <div class="col-span-1 md:col-span-4">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Macro Categoria</label>
+                            <input type="text" id="newCatMacro" list="macroList" placeholder="Ex: Receitas / Moradia" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                            <datalist id="macroList"></datalist>
+                        </div>
+                        <div class="col-span-1 md:col-span-4">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Micro Subcategoria</label>
+                            <input type="text" id="newCatMicro" placeholder="Ex: Salário / Condomínio" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                        </div>
+                        <div class="col-span-1 md:col-span-2">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Natureza</label>
+                            <select id="newCatNat" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                                <option value="Fixo">Despesa: Fixo</option>
+                                <option value="Variável">Despesa: Variável</option>
+                                <option value="Receita">Receita (Entrada)</option>
+                            </select>
+                        </div>
+                        <div class="col-span-1 md:col-span-2 text-right">
+                            <button onclick="addCategoria()" class="w-full bg-highlight hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded transition-colors flex justify-center items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i> Criar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-[300px] overflow-y-auto border border-slate-200 rounded-lg">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-100 sticky top-0 shadow-sm border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Macro Categoria</th>
+                                <th class="px-4 py-3 font-semibold">Micro Subcategoria</th>
+                                <th class="px-4 py-3 text-center font-semibold">Natureza Financeira</th>
+                                <th class="px-4 py-3 text-center font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableCatsBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <i data-lucide="git-merge" class="w-6 h-6 text-highlight"></i>
+                            Motor de Regras (Automação)
+                        </h2>
+                        <p class="text-slate-500 text-sm mt-1">O sistema busca as palavras-chave na descrição (de cima para baixo) e aplica a categoria correspondente.</p>
+                    </div>
+                    <button onclick="reclassifyAll()" class="bg-warning hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Reclassificar Base
+                    </button>
+                </div>
+
+                <div class="bg-slate-50 p-5 rounded-lg border border-slate-200 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                        <div class="col-span-1 md:col-span-5">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Palavras-chave (separadas por vírgula)</label>
+                            <input type="text" id="ruleKeys" placeholder="Ex: IGREJA RED, DOACAO" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                        </div>
+                        <div class="col-span-1 md:col-span-3">
+                            <label class="block text-xs font-medium text-slate-700 mb-1">Categoria (Macro)</label>
+                            <select id="ruleMacro" onchange="updateRuleMicroDropdown()" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                            </select>
+                        </div>
+                        <div class="col-span-1 md:col-span-4 flex items-end gap-3">
+                            <div class="flex-1">
+                                <label class="block text-xs font-medium text-slate-700 mb-1">Subcategoria (Micro)</label>
+                                <select id="ruleMicro" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                                    <option value="">Selecione uma Macro...</option>
+                                </select>
+                            </div>
+                            <button onclick="addRule()" class="bg-highlight hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto max-h-[500px] overflow-y-auto border border-slate-200 rounded-lg">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-500 uppercase bg-slate-100 sticky top-0 shadow-sm border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Se a descrição contiver...</th>
+                                <th class="px-4 py-3 font-semibold">Atribui a Categoria (Macro)</th>
+                                <th class="px-4 py-3 font-semibold">Atribui a Subcategoria (Micro)</th>
+                                <th class="px-4 py-3 text-center font-semibold">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableRulesBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div id="toast-container" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+        <!-- Split Modal -->
+        <div id="modalSplit" class="fixed inset-0 bg-slate-900 bg-opacity-60 z-[100] hidden flex justify-center items-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-fade-in transform scale-100 border border-slate-200">
+                <div class="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                    <h3 class="font-bold text-lg text-primary flex items-center gap-2">
+                        <i data-lucide="scissors" class="w-5 h-5 text-highlight"></i> Decompor Lançamento
+                    </h3>
+                    <button onclick="closeSplitModal()" class="text-slate-400 hover:text-slate-700 transition-colors"><i data-lucide="x"></i></button>
+                </div>
+
+                <div class="p-5 overflow-y-auto flex-1 bg-white">
+                    <div class="bg-slate-50 border border-slate-200 text-slate-800 p-4 rounded-lg mb-6 flex justify-between items-center shadow-sm">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">Lançamento Original</p>
+                            <p class="font-bold text-lg" id="splitOriginalDesc">MERCADOLIVRE</p>
+                            <p class="text-sm text-slate-500" id="splitOriginalDate">Pagamento: 02/2026</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-muted mb-1">Valor Total</p>
+                            <p class="font-bold text-2xl text-highlight" id="splitOriginalVal">R$ 0,00</p>
+                        </div>
+                    </div>
+
+                    <p class="text-sm font-medium text-slate-600 mb-3">Dividir em partes (a soma deve ser exatamente igual ao total):</p>
+                    <div id="splitRowsContainer" class="space-y-3"></div>
+
+                    <div class="flex justify-between items-center mt-4 pt-2 border-t border-slate-100">
+                        <p class="text-xs text-slate-400 italic"><i data-lucide="info" class="w-3 h-3 inline"></i> Se não escolher a Categoria manualmente, o Motor fará o trabalho pela Descrição.</p>
+                        <button onclick="addSplitRow()" class="text-sm font-semibold text-highlight hover:text-sky-700 flex items-center gap-1 bg-sky-50 hover:bg-sky-100 px-3 py-2 rounded transition-colors">
+                            <i data-lucide="plus-circle" class="w-4 h-4"></i> Adicionar parte
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-5 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center bg-slate-50 gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-500 font-medium">Falta alocar:</span>
+                        <span id="splitRemaining" class="font-bold text-lg px-3 py-1 rounded bg-slate-200 text-slate-700 shadow-inner">R$ 0,00</span>
+                    </div>
+                    <div class="flex gap-3 w-full sm:w-auto">
+                        <button onclick="closeSplitModal()" class="flex-1 sm:flex-none px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200 rounded transition-colors border border-slate-300">Cancelar</button>
+                        <button id="btnSaveSplit" onclick="saveSplit()" class="flex-1 sm:flex-none bg-highlight hover:bg-sky-700 text-white px-6 py-2 rounded text-sm font-semibold shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Salvar Nuvem</button>
                     </div>
                 </div>
             </div>
         </div>
+
     </main>
 
-    <!-- Script Block for Initialization and Demo Data -->
     <script>
-        // Configurações de Conexão (Supabase & Backend obtidos do config.js)
-        const SUPABASE_URL = window.ENV?.SUPABASE_URL || ''; 
-        const SUPABASE_ANON_KEY = window.ENV?.SUPABASE_ANON_KEY || ''; 
+        // === CONFIGURAÇÃO SUPABASE ===
+        const SUPABASE_URL = window.ENV?.SUPABASE_URL || '';
+        const SUPABASE_ANON_KEY = window.ENV?.SUPABASE_ANON_KEY || '';
         const BACKEND_URL = window.ENV?.BACKEND_URL || '';
 
-        // Inicialização do Cliente Supabase
-        let supabaseClient = null;
-        try {
-            if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-                supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                console.log("Cliente Supabase instanciado com sucesso:", SUPABASE_URL);
-            } else {
-                console.warn("Chaves do Supabase não configuradas no config.js. Cliente não instanciado.");
-            }
-        } catch (error) {
-            console.error("Erro ao instanciar o cliente Supabase:", error);
-        }
-
-        // Função Global para Testar Conexão com o Backend Local
-        async function testBackend() {
-            if (!BACKEND_URL) {
-                console.warn("BACKEND_URL não está configurada no config.js.");
-                alert("❌ Erro: BACKEND_URL não está configurada no config.js.");
-                updateStatusBadge(false);
-                return;
-            }
-            console.log(`A testar conexão com o backend em ${BACKEND_URL}/health...`);
-            try {
-                const response = await fetch(`${BACKEND_URL}/health`);
-                if (response.ok) {
-                    const data = await response.json().catch(() => null) || await response.text();
-                    console.log("Resposta do Backend:", data);
-                    alert(`✅ Conexão com o Backend estabelecida com sucesso!\nStatus: ${response.status}\nDados: ${JSON.stringify(data)}`);
-                    
-                    // Se conectou, atualiza a badge visual para "Online"
-                    updateStatusBadge(true);
-                } else {
-                    console.error(`Erro do Backend: ${response.status} ${response.statusText}`);
-                    alert(`❌ Erro ao conectar ao Backend.\nStatus: ${response.status} (${response.statusText})`);
-                    updateStatusBadge(false);
-                }
-            } catch (error) {
-                console.error("Erro na requisição ao Backend:", error);
-                alert(`❌ Erro de Conexão: Não foi possível alcançar o backend em ${BACKEND_URL}/health.\nCertifique-se de que o backend local está a correr.`);
-                updateStatusBadge(false);
-            }
-        }
-
-        // Função auxiliar para atualizar visualmente a badge de status do backend
-        function updateStatusBadge(isOnline) {
-            const badge = document.getElementById('backend-badge');
-            if (badge) {
-                if (isOnline) {
-                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-700 text-xs font-semibold";
-                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Backend Online`;
-                } else {
-                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-red-700 text-xs font-semibold";
-                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-red-500 rounded-full"></span> Backend Offline`;
-                }
-            }
-        }
-
-        // Função auxiliar para atualizar visualmente a badge de status do Supabase
-        function updateSupabaseBadge(isConnected, message = "") {
-            const badge = document.getElementById('supabase-badge');
-            if (badge) {
-                if (isConnected) {
-                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-teal-50 border border-teal-200 rounded-full text-teal-700 text-xs font-semibold";
-                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-teal-500 rounded-full animate-pulse"></span> Supabase Ligado`;
-                } else {
-                    const statusText = message ? `Supabase (${message})` : "Supabase Desconectado";
-                    badge.className = "flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full text-amber-700 text-xs font-semibold";
-                    badge.innerHTML = `<span class="w-1.5 h-1.5 bg-amber-500 rounded-full"></span> ${statusText}`;
-                }
-            }
-        }
-
-        // Função Global para Testar Conexão com o Supabase
-        async function testSupabaseConnection() {
-            if (!supabaseClient) {
-                updateSupabaseBadge(false, "Inativo");
-                return;
-            }
-            console.log("A testar conexão com o Supabase...");
-            try {
-                // Fazer uma requisição simples de leitura à API Rest (PostgREST) do Supabase.
-                // Usamos uma tabela fictícia para forçar uma chamada de rede real à API.
-                const { error } = await supabaseClient.from('_connection_test_').select('*').limit(1);
-                
-                // Se o erro for de falha de conexão física/rede ou DNS, 'error.message' conterá 'Failed to fetch' ou similar.
-                if (error && (error.status === 0 || error.message === 'Failed to fetch' || error.message.includes('FetchError'))) {
-                    throw error;
-                }
-                
-                // Se chegámos aqui ou se respondeu com erro PostgREST (como tabela inexistente), significa que
-                // a API do Supabase respondeu com sucesso e validou as credenciais!
-                console.log("Conexão ao Supabase verificada com sucesso.");
-                updateSupabaseBadge(true);
-            } catch (error) {
-                console.error("Erro ao contactar o Supabase:", error);
-                updateSupabaseBadge(false, "Desconectado");
-            }
-        }
-
-        // Initialize Lucide Icons
         lucide.createIcons();
 
-        // Sample Chart Configuration
-        const ctx = document.getElementById('assetsChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
-                datasets: [{
-                    label: 'Novas Aquisições (€)',
-                    data: [12000, 19000, 3000, 5000, 20000, 15000],
-                    borderColor: '#0ea5e9',
-                    backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                    borderWidth: 2,
-                    fill: true,
-                    tension: 0.4
-                }, {
-                    label: 'Depreciação Acumulada (€)',
-                    data: [2000, 4500, 6000, 7500, 10000, 12500],
-                    borderColor: '#f43f5e',
-                    backgroundColor: 'transparent',
-                    borderWidth: 2,
-                    borderDash: [5, 5],
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true
+        async function testBackend() {
+            try {
+                showToast("A testar comunicação com o Backend...", "pending");
+                const res = await fetch(`${BACKEND_URL}/health`);
+                const data = await res.json();
+                showToast(`Backend OK! Resposta: ${data.app}`);
+            } catch (err) {
+                showToast("Erro! O backend está a rodar na porta 3020?", "error");
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const baseClasses = 'flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border transform transition-all duration-300 translate-y-5 opacity-0 pointer-events-auto';
+            const typeClasses = type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : (type === 'pending' ? 'bg-sky-50 border-sky-200 text-sky-800' : 'bg-red-50 border-red-200 text-red-800');
+            let icon = type === 'success' ? '<i data-lucide="check-circle" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-circle" class="w-5 h-5 text-red-500"></i>';
+            if(type === 'pending') icon = '<i data-lucide="loader-2" class="w-5 h-5 text-highlight animate-spin"></i>';
+            toast.className = `${baseClasses} ${typeClasses}`;
+            toast.innerHTML = `${icon} <span class="font-medium text-sm">${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons({ root: toast });
+            requestAnimationFrame(() => toast.classList.remove('translate-y-5', 'opacity-0'));
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-10');
+                setTimeout(() => toast.remove(), 300);
+            }, type === 'pending' ? 1000 : 3000);
+        }
+
+        let db = []; // Mapeamento front-end compatível
+        let categoriasApp = {}; // Mapa macro->micro->natureza
+        let rawCategories = []; // Dados reais do BD
+        let rawRules = [];
+
+        let activeProfileName = null;
+        let activeProfileId = null;
+
+        let currentSelectedMonth = 'all';
+        let currentChartFilterType = null;
+        let currentChartFilterValue = null;
+        let currentTableSubcatFilter = 'all';
+
+        let currentPage = 1;
+        const ITEMS_PER_PAGE = 10;
+        let monthlyChartInstance = null; let pieChartInstance = null; let barChartInstance = null;
+        let itemToSplit = null; let splitParts = [];
+
+        let supabaseClient = null;
+
+        const defaultCategorias = {
+            "Receitas": { "Salário": "Receita", "Rendimentos": "Receita", "Outros": "Receita" },
+            "Compras": { "Diversas/Marketplace": "Variável" },
+            "Moradia": { "Imóvel/Terreno": "Fixo", "Contas de Consumo": "Fixo" },
+            "Comunicações": { "Telefonia Móvel": "Fixo", "Internet Residencial": "Fixo" },
+            "Saúde": { "Terapias e Remédios": "Fixo", "Academia": "Variável" },
+            "Transporte": { "Rotineiro/Combustível": "Fixo", "Aplicativos Eventuais": "Variável" },
+            "Alimentação": { "Mercado e Padaria": "Fixo", "Restaurantes e Delivery": "Variável" }
+        };
+
+        const defaultRegras = [
+            { keys: ['FAROL DA AGUA FRIA', 'MERCADOLIVRE', 'AMAZON MARKETPLACE'], cat: 'Compras', subcat: 'Diversas/Marketplace' },
+            { keys: ['CONDOMINIO', 'PRESTACAO', 'ALUGUEL'], cat: 'Moradia', subcat: 'Imóvel/Terreno' },
+            { keys: ['VIVO EASY', 'CLARO FLEX', 'TIM'], cat: 'Comunicações', subcat: 'Telefonia Móvel' },
+            { keys: ['ENERGIA', 'CPFL', 'AGUA'], cat: 'Moradia', subcat: 'Contas de Consumo' },
+            { keys: ['FRETADO', 'POSTO', 'SHELL', 'SEM PARAR'], cat: 'Transporte', subcat: 'Rotineiro/Combustível' },
+            { keys: ['UBER', '99APP'], cat: 'Transporte', subcat: 'Aplicativos Eventuais' },
+            { keys: ['MERCADO', 'CARREFOUR', 'OBA', 'PADARIA'], cat: 'Alimentação', subcat: 'Mercado e Padaria' },
+            { keys: ['RESTAURANTE', 'IFD', 'PIZZARIA'], cat: 'Alimentação', subcat: 'Restaurantes e Delivery' }
+        ];
+
+        function initApp() {
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+                document.getElementById('view-setup').style.display = 'flex';
+                return;
+            }
+            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            const savedProfileName = localStorage.getItem('orcamento_active_profile');
+            if (savedProfileName) {
+                selectProfile(savedProfileName);
+            } else {
+                document.getElementById('view-auth').style.display = 'flex';
+            }
+        }
+
+        async function selectProfile(profileName) {
+            document.getElementById('view-auth').style.display = 'none';
+            document.getElementById('view-loading').style.display = 'flex';
+            document.getElementById('loadingText').textContent = `A carregar perfil ${profileName}...`;
+
+            // Busca ou Cria Perfil
+            let { data: profs, error } = await supabaseClient.from('profiles').select('*').eq('name', profileName);
+            if (!profs || profs.length === 0) {
+                const { data: newProf } = await supabaseClient.from('profiles').insert([{ name: profileName }]).select();
+                activeProfileId = newProf[0].id;
+                activeProfileName = newProf[0].name;
+                await seedDefaults();
+            } else {
+                activeProfileId = profs[0].id;
+                activeProfileName = profs[0].name;
+            }
+
+            localStorage.setItem('orcamento_active_profile', activeProfileName);
+            document.getElementById('activeProfileName').textContent = activeProfileName;
+
+            await loadDataFromCloud();
+            document.getElementById('view-loading').style.display = 'none';
+        }
+
+        function logoutProfile() {
+            activeProfileId = null;
+            activeProfileName = null;
+            localStorage.removeItem('orcamento_active_profile');
+            document.getElementById('view-auth').style.display = 'flex';
+            db = []; categoriasApp = {}; rawCategories = []; rawRules = [];
+            clearChartFilter(false);
+            if(monthlyChartInstance) monthlyChartInstance.destroy();
+            if(pieChartInstance) pieChartInstance.destroy();
+            if(barChartInstance) barChartInstance.destroy();
+        }
+
+        async function seedDefaults() {
+            const catsToInsert = [];
+            for (let macro in defaultCategorias) {
+                for (let micro in defaultCategorias[macro]) {
+                    catsToInsert.push({ profile_id: activeProfileId, macro, micro, nature: defaultCategorias[macro][micro] });
+                }
+            }
+            const { data: savedCats } = await supabaseClient.from('categories').insert(catsToInsert).select();
+
+            const rulesToInsert = [];
+            for (let r of defaultRegras) {
+                const catInfo = savedCats.find(c => c.macro === r.cat && c.micro === r.subcat);
+                if(catInfo) {
+                    rulesToInsert.push({ profile_id: activeProfileId, keywords: r.keys, category_id: catInfo.id });
+                }
+            }
+            if(rulesToInsert.length > 0) await supabaseClient.from('rules').insert(rulesToInsert);
+        }
+
+        async function loadDataFromCloud(isSilent = false) {
+            if(!isSilent) document.getElementById('loadingText').textContent = "A sincronizar dados...";
+
+            // 1. Fetch Categories
+            const { data: catsData } = await supabaseClient.from('categories').select('*').eq('profile_id', activeProfileId);
+            rawCategories = catsData || [];
+            categoriasApp = {};
+            rawCategories.forEach(c => {
+                if(!categoriasApp[c.macro]) categoriasApp[c.macro] = {};
+                categoriasApp[c.macro][c.micro] = c.nature;
+            });
+
+            // 2. Fetch Rules
+            const { data: rulesData } = await supabaseClient.from('rules').select('*').eq('profile_id', activeProfileId).order('priority', { ascending: false });
+            rawRules = rulesData || [];
+
+            // 3. Fetch Transactions
+            const { data: txsData } = await supabaseClient.from('transactions').select('*, categories(macro, micro, nature)').eq('profile_id', activeProfileId);
+
+            // Rebuild UI generic 'db' array to minimize charting logic changes
+            db = (txsData || []).map(t => {
+                const dPag = new Date(t.date_payment + 'T00:00:00'); // Force local timezone parsing
+                const dOco = new Date(t.date_occurrence + 'T00:00:00');
+                return {
+                    id: t.id,
+                    dataLancamento: t.date_occurrence,
+                    mesAnoLancamento: `${String(dOco.getMonth() + 1).padStart(2,'0')}/${dOco.getFullYear()}`,
+                    mesAnoPagamento: `${String(dPag.getMonth() + 1).padStart(2,'0')}/${dPag.getFullYear()}`,
+                    desc: t.description,
+                    valor: parseFloat(t.amount),
+                    cat: t.categories ? t.categories.macro : 'Pendente de Classificação',
+                    subcat: t.categories ? t.categories.micro : 'Sem Subcategoria',
+                    natureza: t.categories ? t.categories.nature : 'Pendente',
+                    fileSource: t.source,
+                    origem: t.source === 'Lançamento Manual' ? 'Manual' : 'Cartão',
+                    isParcela: false,
+                    parcelaStr: '-',
+                    isSplitParent: false,
+                    isDecomposedPart: !!t.parent_transaction_id,
+                    parentId: t.parent_transaction_id
+                };
+            });
+
+            // Mark split parents
+            const parentIds = new Set(db.filter(d => d.isDecomposedPart).map(d => d.parentId));
+            db.forEach(d => { if (parentIds.has(d.id)) d.isSplitParent = true; });
+
+            updateAllViews();
+        }
+
+        async function clearAllData() {
+            if(confirm("Tem certeza que deseja apagar TODOS os lançamentos na nuvem?")) {
+                document.getElementById('view-loading').style.display = 'flex';
+                await supabaseClient.from('transactions').delete().eq('profile_id', activeProfileId);
+                document.getElementById('view-loading').style.display = 'none';
+                await loadDataFromCloud();
+                showToast("Nuvem apagada com sucesso.");
+            }
+        }
+
+        async function deleteItem(id) {
+            if(confirm("Deseja apagar este lançamento?")) {
+                await supabaseClient.from('transactions').delete().eq('id', id); // CASCADE takes care of parts
+                await loadDataFromCloud(true);
+                showToast("Lançamento removido.");
+            }
+        }
+
+        async function deleteFile(fileName) {
+            if(confirm(`Deseja apagar todos os lançamentos originados de '${fileName}'?`)) {
+                document.getElementById('view-loading').style.display = 'flex';
+                await supabaseClient.from('transactions').delete().eq('profile_id', activeProfileId).eq('source', fileName);
+                document.getElementById('view-loading').style.display = 'none';
+                await loadDataFromCloud(true);
+                showToast("Ficheiro removido da nuvem.");
+            }
+        }
+
+        function classifyExpense(desc, forceCatSubcat = 'auto') {
+            let catId = null; let macro = 'Pendente de Classificação'; let micro = 'Sem Subcategoria'; let nature = 'Pendente';
+
+            if (forceCatSubcat !== 'auto' && forceCatSubcat) {
+                const parts = forceCatSubcat.split('|');
+                if(parts.length === 2) {
+                    const found = rawCategories.find(c => c.macro === parts[0] && c.micro === parts[1]);
+                    if(found) { catId = found.id; macro = found.macro; micro = found.micro; nature = found.nature; }
+                }
+            } else {
+                const descUpper = desc.toUpperCase();
+                for (let rule of rawRules) {
+                    if (rule.keywords.some(k => descUpper.includes(k.trim().toUpperCase()))) {
+                        const found = rawCategories.find(c => c.id === rule.category_id);
+                        if(found) { catId = found.id; macro = found.macro; micro = found.micro; nature = found.nature; break; }
                     }
                 }
             }
+            return { catId, macro, micro, nature };
+        }
+
+        async function reclassifyAll() {
+            if(confirm("Aplicará as regras a todos os lançamentos (exceto Decompostos). Continuar?")) {
+                document.getElementById('view-loading').style.display = 'flex';
+
+                // Fetch non-split, non-manual txs
+                const { data: txsToUpdate } = await supabaseClient.from('transactions')
+                    .select('*')
+                    .eq('profile_id', activeProfileId)
+                    .is('parent_transaction_id', null)
+                    .neq('source', 'Lançamento Manual');
+
+                const updates = [];
+                for(let t of (txsToUpdate || [])) {
+                    // Check if it has children in UI db mapping (split parent)
+                    if (db.some(d => d.parentId === t.id)) continue;
+
+                    const cls = classifyExpense(t.description);
+                    if (t.category_id !== cls.catId) {
+                        updates.push({ ...t, category_id: cls.catId });
+                    }
+                }
+
+                if (updates.length > 0) {
+                    await supabaseClient.from('transactions').upsert(updates);
+                    await loadDataFromCloud(true);
+                    showToast(`${updates.length} lançamentos reclassificados.`);
+                } else {
+                    showToast("Nenhum lançamento precisou ser alterado.", "success");
+                }
+                document.getElementById('view-loading').style.display = 'none';
+            }
+        }
+
+        async function addCategoria() {
+            const macro = document.getElementById('newCatMacro').value.trim();
+            const micro = document.getElementById('newCatMicro').value.trim();
+            const nature = document.getElementById('newCatNat').value;
+            if(!macro || !micro) { showToast("Preencha a Macro e a Micro.", "error"); return; }
+
+            const { error } = await supabaseClient.from('categories').insert([{ profile_id: activeProfileId, macro, micro, nature }]);
+            if(error) { showToast("Erro. Categoria já existe?", "error"); return; }
+
+            document.getElementById('newCatMacro').value = ''; document.getElementById('newCatMicro').value = '';
+            await loadDataFromCloud(true); showToast("Categoria adicionada.");
+        }
+
+        async function removeCategoria(id) {
+            if(confirm(`Remover categoria? As regras associadas serão excluídas e as transações ficarão 'Pendentes'.`)) {
+                await supabaseClient.from('categories').delete().eq('id', id);
+                await loadDataFromCloud(true); showToast("Categoria removida.");
+            }
+        }
+
+        async function addRule() {
+            const keysRaw = document.getElementById('ruleKeys').value;
+            const microSelect = document.getElementById('ruleMicro').value;
+            if(!keysRaw || !microSelect) { showToast("Preencha palavras-chave e selecione a Categoria.", "error"); return; }
+
+            const keywords = keysRaw.split(',').map(k => k.trim().toUpperCase()).filter(k => k);
+            if(keywords.length === 0) return;
+
+            await supabaseClient.from('rules').insert([{ profile_id: activeProfileId, keywords, category_id: microSelect }]);
+            document.getElementById('ruleKeys').value = '';
+            await loadDataFromCloud(true); showToast("Regra criada!");
+        }
+
+        async function removeRule(id) {
+            await supabaseClient.from('rules').delete().eq('id', id);
+            await loadDataFromCloud(true); showToast("Regra removida.");
+        }
+
+        const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+        const formatBRDate = (isoDate) => { if(!isoDate) return '-'; const [y,m,d] = isoDate.split('-'); return `${d}/${m}/${y}`; }
+
+        document.getElementById('formManual').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const dataPagamento = document.getElementById('inDataPagamento').value;
+            const dataLancamento = document.getElementById('inDataLancamento').value || dataPagamento;
+            const valor = parseFloat(document.getElementById('inValor').value);
+            const desc = document.getElementById('inDesc').value;
+            const catSelec = document.getElementById('inCat').value;
+
+            if(!dataPagamento || !valor || !desc) return;
+            const cls = classifyExpense(desc, catSelec);
+            const isRecorrente = document.getElementById('inRecorrente').checked;
+            const repeticoes = isRecorrente ? parseInt(document.getElementById('inMesesRepeticao').value) : 1;
+            const type = cls.nature === 'Receita' ? 'Receita' : 'Despesa';
+
+            const calcAdjustedDate = (dateStr, m) => {
+                const [y, month, d] = dateStr.split('-').map(Number);
+                let date = new Date(y, month - 1 + m, d);
+                // Adjust simple weekends logic conceptually...
+                return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            };
+
+            showToast("A sincronizar dados...", "pending");
+            let novosItems = [];
+            for(let i = 0; i < repeticoes; i++) {
+                const curPag = calcAdjustedDate(dataPagamento, i);
+                const curLan = calcAdjustedDate(dataLancamento, i);
+                let descFinal = isRecorrente ? `${desc} (${i+1}/${repeticoes})` : desc;
+                novosItems.push({
+                    profile_id: activeProfileId, date_payment: curPag, date_occurrence: curLan,
+                    description: descFinal, amount: valor, type, category_id: cls.catId,
+                    source: 'Lançamento Manual', is_recurring: isRecorrente
+                });
+            }
+
+            const { error } = await supabaseClient.from('transactions').insert(novosItems);
+            if (!error) {
+                document.getElementById('formManual').reset();
+                document.getElementById('recorrenteContainer').classList.add('hidden');
+                await loadDataFromCloud(true);
+                showToast(isRecorrente ? `${repeticoes} lançamentos na nuvem!` : "Lançamento guardado na nuvem!");
+            } else { showToast("Erro ao gravar.", "error"); }
         });
 
-        // Supabase Client Initialization Example (for connection test later)
-        console.log("Supabase Library Loaded:", !!window.supabase);
+        document.getElementById('csvFileInput').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if (files.length === 0) return;
 
-        // Executar testes de conexão automáticos na inicialização
-        testSupabaseConnection();
-        // Também testamos o backend silenciosamente no início para atualizar a badge inicial
-        if (BACKEND_URL) {
-            (async () => {
-                try {
-                    const response = await fetch(`${BACKEND_URL}/health`);
-                    updateStatusBadge(response.ok);
-                } catch (e) {
-                    updateStatusBadge(false);
+            showToast("A processar CSV...", "pending");
+            let novosItems = [];
+
+            for (const file of files) {
+                const text = await file.text();
+                const match = file.name.match(/(\d{4})-(\d{2})-(\d{2})/);
+                // Fallback payment date if inferred from filename like "Fatura2026-02-01.csv" -> 2026-02-01
+                const inferredDate = match ? `${match[1]}-${match[2]}-01` : null;
+
+                // Apaga ficheiros com este nome antes
+                await supabaseClient.from('transactions').delete().eq('profile_id', activeProfileId).eq('source', file.name);
+
+                const lines = text.split('\n');
+                let isFirst = true;
+
+                for (let line of lines) {
+                    if (!line.trim() || isFirst) { isFirst = false; continue; }
+                    const cols = line.split(';');
+                    if (cols.length < 4) continue;
+
+                    const dataRaw = cols[0].trim();
+                    const desc = cols[1].trim();
+                    let valorStr = cols[3].trim().replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+                    const valor = parseFloat(valorStr);
+                    if (isNaN(valor) || valor <= 0) continue;
+
+                    const parts = dataRaw.split('/');
+                    if(parts.length !== 3) continue;
+                    const date_occurrence = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    const date_payment = inferredDate || date_occurrence; // Se não tiver no nome, usa o lançamento
+
+                    const cls = classifyExpense(desc);
+                    // Cartão entra sempre como Despesa. Receitas eventuais na fatura ficam negativas (desconsideradas) ou a tratar depois
+                    novosItems.push({
+                        profile_id: activeProfileId, date_payment, date_occurrence, description: desc,
+                        amount: valor, type: 'Despesa', category_id: cls.catId, source: file.name
+                    });
                 }
-            })();
-        } else {
-            updateStatusBadge(false);
+            }
+            if (novosItems.length > 0) {
+                // Bulk insert by chunks if necessary, but Supabase handles up to a few thousands fine
+                await supabaseClient.from('transactions').insert(novosItems);
+                await loadDataFromCloud(true);
+                showToast(`${novosItems.length} transações salvas na nuvem!`);
+            }
+            document.getElementById('csvFileInput').value = '';
+        });
+
+        // ================= SPLIT LOGIC =================
+        function openSplitModal(id) {
+            itemToSplit = db.find(x => x.id === id);
+            if(!itemToSplit) return;
+            document.getElementById('splitOriginalDesc').textContent = itemToSplit.desc;
+            document.getElementById('splitOriginalDate').textContent = `Pagamento: ${itemToSplit.mesAnoPagamento}`;
+            document.getElementById('splitOriginalVal').textContent = formatCurrency(itemToSplit.valor);
+            splitParts = [{ valor: 0, cat: 'auto', desc: itemToSplit.desc + ' (Parte 1)' }, { valor: 0, cat: 'auto', desc: itemToSplit.desc + ' (Parte 2)' }];
+            renderSplitRows();
+            document.getElementById('modalSplit').classList.remove('hidden');
         }
+
+        function closeSplitModal() { document.getElementById('modalSplit').classList.add('hidden'); itemToSplit = null; }
+        function addSplitRow() { splitParts.push({ valor: 0, cat: 'auto', desc: itemToSplit.desc + ` (Parte ${splitParts.length + 1})` }); renderSplitRows(); }
+        function removeSplitRow(index) {
+            if(splitParts.length <= 2) { showToast("A decomposição precisa de pelo menos 2 partes.", "error"); return; }
+            splitParts.splice(index, 1); renderSplitRows();
+        }
+        function updateSplitValue(index, val) { splitParts[index].valor = parseFloat(val) || 0; updateSplitFooter(); }
+        function updateSplitField(index, field, val) { splitParts[index][field] = val; }
+
+        function renderSplitRows() {
+            const container = document.getElementById('splitRowsContainer');
+            container.innerHTML = '';
+            const catsOptionsHTML = getCategoryOptgroupsHTML();
+            splitParts.forEach((part, idx) => {
+                const row = document.createElement('div');
+                row.className = 'flex flex-col sm:flex-row gap-3 items-end bg-slate-50 p-3 rounded border border-slate-200 relative';
+                row.innerHTML = `
+                    <div class="w-full sm:w-1/3">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Novo Valor (R$)</label>
+                        <input type="number" step="0.01" value="${part.valor || ''}" onchange="updateSplitValue(${idx}, this.value)" onkeyup="updateSplitValue(${idx}, this.value)" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">
+                    </div>
+                    <div class="w-full sm:w-1/3">
+                        <label class="block text-xs font-medium text-slate-500 mb-1">Categoria</label>
+                        <select onchange="updateSplitField(${idx}, 'cat', this.value)" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight">${catsOptionsHTML}</select>
+                    </div>
+                    <div class="w-full sm:w-1/3 flex items-end gap-2">
+                        <div class="flex-1"><label class="block text-xs font-medium text-slate-500 mb-1">Nova Descrição</label><input type="text" value="${part.desc}" onchange="updateSplitField(${idx}, 'desc', this.value)" class="w-full bg-white border border-slate-300 text-sm rounded p-2 outline-none focus:border-highlight focus:ring-1 focus:ring-highlight"></div>
+                        <button onclick="removeSplitRow(${idx})" class="p-2 text-slate-400 hover:text-red-500 bg-white border border-slate-200 rounded h-[38px] transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>`;
+                row.querySelector('select').value = part.cat || 'auto';
+                container.appendChild(row);
+            });
+            lucide.createIcons(); updateSplitFooter();
+        }
+
+        function updateSplitFooter() {
+            if(!itemToSplit) return;
+            const sum = splitParts.reduce((acc, p) => acc + p.valor, 0);
+            const remaining = itemToSplit.valor - sum;
+            document.getElementById('splitRemaining').textContent = formatCurrency(Math.abs(remaining));
+            const btnSave = document.getElementById('btnSaveSplit');
+            if(Math.abs(remaining) < 0.01) {
+                document.getElementById('splitRemaining').className = "font-bold text-lg px-3 py-1 rounded bg-emerald-100 text-emerald-700 shadow-inner";
+                btnSave.disabled = false;
+            } else {
+                document.getElementById('splitRemaining').className = "font-bold text-lg px-3 py-1 rounded bg-red-100 text-red-700 shadow-inner";
+                btnSave.disabled = true;
+                document.getElementById('splitRemaining').textContent = remaining < 0 ? `Passou ${formatCurrency(Math.abs(remaining))}` : `Falta ${formatCurrency(Math.abs(remaining))}`;
+            }
+        }
+
+        async function saveSplit() {
+            if(!itemToSplit) return;
+            const sum = splitParts.reduce((acc, p) => acc + p.valor, 0);
+            if(Math.abs(itemToSplit.valor - sum) > 0.01) { showToast("Soma não bate.", "error"); return; }
+            document.getElementById('view-loading').style.display = 'flex';
+
+            // Find parent date logic back from mapped UI date strings is hard, better fetch exact parent row
+            const { data: parentObj } = await supabaseClient.from('transactions').select('*').eq('id', itemToSplit.id).single();
+
+            let novosItens = [];
+            splitParts.forEach(p => {
+                const descFinal = p.desc.trim() || parentObj.description;
+                const cls = classifyExpense(descFinal, p.cat);
+                novosItens.push({
+                    profile_id: activeProfileId, date_payment: parentObj.date_payment, date_occurrence: parentObj.date_occurrence,
+                    description: descFinal, amount: p.valor, type: parentObj.type, category_id: cls.catId, source: parentObj.source,
+                    parent_transaction_id: parentObj.id
+                });
+            });
+
+            await supabaseClient.from('transactions').insert(novosItens);
+            await loadDataFromCloud(true);
+            closeSplitModal();
+            document.getElementById('view-loading').style.display = 'none';
+            showToast("Lançamento decomposto!");
+        }
+
+        async function undoSplit(parentId) {
+            if(confirm("Deseja desfazer a decomposição e voltar ao original?")) {
+                document.getElementById('view-loading').style.display = 'flex';
+                // CASCADE in DB will not restore anything, it just deletes parts if we delete parent.
+                // Wait, if we undo split, we just delete the parts. The parent is still there!
+                await supabaseClient.from('transactions').delete().eq('parent_transaction_id', parentId);
+                await loadDataFromCloud(true);
+                document.getElementById('view-loading').style.display = 'none';
+                showToast("Decomposição desfeita.");
+            }
+        }
+
+        // ================= DYNAMIC UI GENERATORS =================
+        function getCategoryOptgroupsHTML() {
+            let html = '<option value="auto">Automático (Usar Motor de Regras)</option>';
+            Object.keys(categoriasApp).sort().forEach(macro => {
+                html += `<optgroup label="${macro}">`;
+                Object.keys(categoriasApp[macro]).sort().forEach(micro => {
+                    html += `<option value="${macro}|${micro}">${macro} > ${micro}</option>`;
+                });
+                html += `</optgroup>`;
+            });
+            return html;
+        }
+
+        function updateFormDropdowns() {
+            const inCatHTML = getCategoryOptgroupsHTML();
+            const inCatElem = document.getElementById('inCat');
+            if(inCatElem) inCatElem.innerHTML = inCatHTML;
+
+            const macroList = document.getElementById('macroList');
+            const ruleMacro = document.getElementById('ruleMacro');
+            if(macroList) macroList.innerHTML = '';
+            if(ruleMacro) ruleMacro.innerHTML = '<option value="">Selecione...</option>';
+
+            Object.keys(categoriasApp).sort().forEach(macro => {
+                if(macroList) macroList.appendChild(new Option(macro, macro));
+                if(ruleMacro) ruleMacro.appendChild(new Option(macro, macro));
+            });
+            updateRuleMicroDropdown();
+        }
+
+        function updateRuleMicroDropdown() {
+            const ruleMacro = document.getElementById('ruleMacro');
+            const ruleMicro = document.getElementById('ruleMicro');
+            if(!ruleMacro || !ruleMicro) return;
+            ruleMicro.innerHTML = '<option value="">Selecione...</option>';
+            const macroVal = ruleMacro.value;
+            if (macroVal && categoriasApp[macroVal]) {
+                Object.keys(categoriasApp[macroVal]).sort().forEach(micro => {
+                    // Find actual DB ID
+                    const rawCat = rawCategories.find(c => c.macro === macroVal && c.micro === micro);
+                    if(rawCat) ruleMicro.appendChild(new Option(micro, rawCat.id));
+                });
+            }
+        }
+
+        function updateTableSubcatDropdown() {
+            const select = document.getElementById('tableSubcatFilter');
+            if(!select) return;
+            select.innerHTML = '<option value="all">Todas as Subcategorias</option>';
+            const uniqueSubcats = new Set();
+            db.forEach(item => { if (!item.isSplitParent) uniqueSubcats.add(item.subcat || 'Sem Subcategoria'); });
+            Array.from(uniqueSubcats).sort().forEach(sub => select.appendChild(new Option(sub, sub)));
+            select.value = currentTableSubcatFilter;
+        }
+
+        function updateAllViews() {
+            updateFormDropdowns();
+            renderDashboard();
+            renderFilesTable();
+            renderRulesTable();
+            renderCategoriasTable();
+        }
+
+        function getActiveMonthField() {
+            const baseSelect = document.getElementById('dashBaseFilter');
+            return baseSelect && baseSelect.value === 'lancamento' ? 'mesAnoLancamento' : 'mesAnoPagamento';
+        }
+
+        function resetAndRenderDashboard() { currentSelectedMonth = 'all'; document.getElementById('btnLimparMes').classList.add('hidden'); renderDashboard(); }
+        function clearMonthFilter() { currentSelectedMonth = 'all'; document.getElementById('btnLimparMes').classList.add('hidden'); clearChartFilter(false); renderDashboard(); }
+
+        function drawMonthlyChart(labels, receitasArr, despesasArr) {
+            if (monthlyChartInstance) monthlyChartInstance.destroy();
+            const bgColorsDespesas = labels.map(l => (currentSelectedMonth === 'all' || l === currentSelectedMonth) ? '#0ea5e9' : '#cbd5e1');
+            const bgColorsReceitas = labels.map(l => (currentSelectedMonth === 'all' || l === currentSelectedMonth) ? '#10b981' : '#a7f3d0');
+
+            monthlyChartInstance = new Chart(document.getElementById('monthlyBarChart').getContext('2d'), {
+                type: 'bar', data: { labels: labels, datasets: [ { label: 'Entradas (R$)', data: receitasArr, backgroundColor: bgColorsReceitas, borderRadius: 4 }, { label: 'Saídas (R$)', data: despesasArr, backgroundColor: bgColorsDespesas, borderRadius: 4 } ] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, font: { family: "'Inter', sans-serif" } } } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: (val) => 'R$ ' + val }, grid: { borderDash: [4, 4], color: '#f1f5f9' } }, x: { grid: { display: false }, ticks: { font: { size: 11, family: "'Inter', sans-serif" } } } },
+                    onClick: (event, elements, chart) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index; const monthStr = chart.data.labels[index];
+                            if (currentSelectedMonth === monthStr) clearMonthFilter();
+                            else { currentSelectedMonth = monthStr; document.getElementById('btnLimparMes').classList.remove('hidden'); clearChartFilter(false); renderDashboard(); }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDashboard() {
+            const baseField = getActiveMonthField();
+            const tituloCustoTotal = document.getElementById('tituloCustoTotal');
+
+            const monthlyReceitasMap = new Map(); const monthlyDespesasMap = new Map();
+            db.forEach(item => {
+                if(item.isSplitParent) return;
+                const m = item[baseField];
+                if(m) {
+                    if(item.natureza === 'Receita') monthlyReceitasMap.set(m, (monthlyReceitasMap.get(m) || 0) + item.valor);
+                    else monthlyDespesasMap.set(m, (monthlyDespesasMap.get(m) || 0) + item.valor);
+                }
+            });
+
+            const allKeys = new Set([...monthlyReceitasMap.keys(), ...monthlyDespesasMap.keys()]);
+            let allMonths = Array.from(allKeys).sort((a,b) => { const [mA, yA] = a.split('/'); const [mB, yB] = b.split('/'); return (yA+mA).localeCompare(yB+mB); });
+            if (allMonths.length > 12) allMonths = allMonths.slice(allMonths.length - 12);
+
+            drawMonthlyChart(allMonths, allMonths.map(m => monthlyReceitasMap.get(m) || 0), allMonths.map(m => monthlyDespesasMap.get(m) || 0));
+
+            currentDashData = []; let divisor = 1;
+
+            if (currentSelectedMonth !== 'all') {
+                currentDashData = db.filter(i => i[baseField] === currentSelectedMonth);
+                tituloCustoTotal.textContent = `Total de Saídas (${currentSelectedMonth})`;
+                document.getElementById('dashMonthSubtitle').innerHTML = `A exibir dados de <strong class="text-highlight">${currentSelectedMonth}</strong>.`;
+                document.getElementById('btnLimparMes').classList.remove('hidden');
+            } else {
+                currentDashData = [...db];
+                divisor = new Set(db.map(i => i[baseField])).size || 1;
+                tituloCustoTotal.textContent = `Média de Saídas (${divisor} meses)`;
+                document.getElementById('dashMonthSubtitle').textContent = "Clique num mês no gráfico para filtrar todos os dados abaixo.";
+                document.getElementById('btnLimparMes').classList.add('hidden');
+            }
+
+            let sumFixos = 0, sumVariaveis = 0, sumPendentes = 0, sumParcelas = 0, sumReceitas = 0; let catSubcatTotals = {};
+
+            currentDashData.forEach(item => {
+                if (item.isSplitParent) return;
+                const v = item.valor / divisor;
+                if (item.natureza === 'Receita') { sumReceitas += v; } else {
+                    if (item.natureza === 'Fixo') sumFixos += v; else if (item.natureza === 'Variável') sumVariaveis += v; else sumPendentes += v;
+                    if (item.isParcela) sumParcelas += v;
+                    const catName = item.cat || 'Pendente de Classificação'; const subcatName = item.subcat || 'Sem Subcategoria';
+                    if(!catSubcatTotals[catName]) catSubcatTotals[catName] = { total: 0, subcats: {} };
+                    catSubcatTotals[catName].total += v; catSubcatTotals[catName].subcats[subcatName] = (catSubcatTotals[catName].subcats[subcatName] || 0) + v;
+                }
+            });
+
+            const totalDespesas = sumFixos + sumVariaveis + sumPendentes; const saldo = sumReceitas - totalDespesas;
+            document.getElementById('lblReceitas').textContent = formatCurrency(sumReceitas); document.getElementById('lblTotal').textContent = formatCurrency(totalDespesas);
+            const lblSaldo = document.getElementById('lblSaldo'); lblSaldo.textContent = formatCurrency(saldo);
+            lblSaldo.className = saldo >= 0 ? "text-2xl font-bold text-emerald-300" : "text-2xl font-bold text-red-300";
+
+            document.getElementById('lblFixos').textContent = formatCurrency(sumFixos); document.getElementById('lblVariaveis').textContent = formatCurrency(sumVariaveis);
+            document.getElementById('lblPendentes').textContent = formatCurrency(sumPendentes); document.getElementById('lblParcelas').textContent = formatCurrency(sumParcelas);
+
+            const percFixos = totalDespesas > 0 ? Math.round((sumFixos / totalDespesas) * 100) : 0;
+            const percVar = totalDespesas > 0 ? Math.round((sumVariaveis / totalDespesas) * 100) : 0;
+            const percPen = totalDespesas > 0 ? Math.round((sumPendentes / totalDespesas) * 100) : 0;
+
+            document.getElementById('lblFixosPerc').textContent = `${percFixos}% do total`; document.getElementById('lblVarPerc').textContent = `${percVar}% do total`; document.getElementById('lblPenPerc').textContent = `${percPen}% do total`;
+            document.getElementById('barFixosPerc').style.width = `${percFixos}%`; document.getElementById('barVariaveisPerc').style.width = `${percVar}%`; document.getElementById('barPendentesPerc').style.width = `${percPen}%`;
+            document.getElementById('lblPercRatio').textContent = `${percFixos}% Fixos / ${percVar}% Var / ${percPen}% Pend.`;
+
+            drawCharts(sumFixos, sumVariaveis, sumPendentes, catSubcatTotals);
+            currentPage = 1; updateTableSubcatDropdown(); renderTransactionsTable();
+        }
+
+        const subcatColorPalette = ['#0ea5e9', '#38bdf8', '#7dd3fc', '#bae6fd', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#0284c7', '#0369a1', '#075985', '#0c4a6e', '#f59e0b', '#fbbf24', '#fcd34d', '#fde68a', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0'];
+
+        function drawCharts(fixos, variaveis, pendentes, catSubcatTotals) {
+            if (pieChartInstance) pieChartInstance.destroy(); if (barChartInstance) barChartInstance.destroy();
+
+            pieChartInstance = new Chart(document.getElementById('expensesPieChart').getContext('2d'), {
+                type: 'doughnut', data: { labels: ['Fixo', 'Variável', 'Pendente'], datasets: [{ data: [fixos, variaveis, pendentes], backgroundColor: ['#0284c7', '#f59e0b', '#94a3b8'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, font: { family: "'Inter', sans-serif" } } } }, cutout: '70%', onClick: (event, elements, chart) => { if (elements.length > 0) setChartFilter('natureza', chart.data.labels[elements[0].index]); } }
+            });
+
+            const sortedCats = Object.keys(catSubcatTotals).map(k => ({ cat: k, total: catSubcatTotals[k].total, subcats: catSubcatTotals[k].subcats })).sort((a,b) => b.total - a.total).slice(0, 7);
+            const uniqueSubcatsSet = new Set(); sortedCats.forEach(c => Object.keys(c.subcats).forEach(sc => uniqueSubcatsSet.add(sc)));
+            const uniqueSubcats = Array.from(uniqueSubcatsSet);
+
+            const datasets = uniqueSubcats.map((subcat, index) => ({
+                label: subcat, data: sortedCats.map(c => c.subcats[subcat] || 0), backgroundColor: subcatColorPalette[index % subcatColorPalette.length], borderWidth: 1, borderColor: '#ffffff'
+            }));
+
+            barChartInstance = new Chart(document.getElementById('categoryBarChart').getContext('2d'), {
+                type: 'bar', data: { labels: sortedCats.map(c => c.cat), datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(30, 41, 59, 0.95)', titleFont: { size: 14, family: "'Inter', sans-serif" }, bodyFont: { size: 12, family: "'Inter', sans-serif" }, padding: 12, callbacks: { title: (context) => `${sortedCats[context[0].dataIndex].cat} (Total: ${formatCurrency(sortedCats[context[0].dataIndex].total)})`, label: (context) => context.raw === 0 ? null : `  ${context.dataset.label}: ${formatCurrency(context.raw)}` } } },
+                    scales: { x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11, family: "'Inter', sans-serif" } } }, y: { stacked: true, beginAtZero: true, ticks: { callback: (val) => 'R$ ' + val, font: { family: "'Inter', sans-serif"} }, grid: { borderDash: [4, 4], color: '#f1f5f9' } } },
+                    onClick: (event, elements, chart) => { if (elements.length > 0) setChartFilter('subcat', chart.data.datasets[elements[0].datasetIndex].label); }
+                }
+            });
+        }
+
+        function applyTableSubcatFilter() { currentTableSubcatFilter = document.getElementById('tableSubcatFilter').value; currentPage = 1; renderTransactionsTable(); }
+        function setChartFilter(type, value) {
+            currentChartFilterType = type; currentChartFilterValue = value; currentPage = 1;
+            document.getElementById('activeFilterName').textContent = `${type === 'natureza' ? 'Nat' : 'Cat.'}: ${value}`;
+            document.getElementById('activeFilterBadge').classList.remove('hidden');
+            renderTransactionsTable(); document.getElementById('tableTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        function clearChartFilter(shouldRender = true) {
+            currentChartFilterType = null; currentChartFilterValue = null; currentTableSubcatFilter = 'all';
+            if(document.getElementById('tableSubcatFilter')) document.getElementById('tableSubcatFilter').value = 'all';
+            currentPage = 1; document.getElementById('activeFilterBadge').classList.add('hidden');
+            if(shouldRender) renderTransactionsTable();
+        }
+
+        function renderTransactionsTable() {
+            const tbody = document.getElementById('transactionsTableBody');
+            tbody.innerHTML = '';
+
+            const parentMap = new Map();
+            currentDashData.forEach(item => { if (!item.isDecomposedPart) parentMap.set(item.id, { ...item, children: [] }); });
+            currentDashData.forEach(item => { if (item.isDecomposedPart && parentMap.has(item.parentId)) parentMap.get(item.parentId).children.push(item); });
+
+            let logicalItems = Array.from(parentMap.values()).filter(p => {
+                let passesDropdown = currentTableSubcatFilter === 'all'; let passesChart = !currentChartFilterType;
+                if(currentChartFilterType === 'natureza' && p.natureza === currentChartFilterValue) passesChart = true;
+                if(currentChartFilterType === 'subcat' && (p.subcat === currentChartFilterValue || (!p.subcat && p.cat === currentChartFilterValue))) passesChart = true;
+                if(currentTableSubcatFilter !== 'all' && (p.subcat === currentTableSubcatFilter || (!p.subcat && p.cat === currentTableSubcatFilter))) passesDropdown = true;
+                if(p.isSplitParent) {
+                    p.children.forEach(c => {
+                        if(currentChartFilterType === 'natureza' && c.natureza === currentChartFilterValue) passesChart = true;
+                        if(currentChartFilterType === 'subcat' && (c.subcat === currentChartFilterValue || (!c.subcat && c.cat === currentChartFilterValue))) passesChart = true;
+                        if(currentTableSubcatFilter !== 'all' && (c.subcat === currentTableSubcatFilter || (!c.subcat && c.cat === currentTableSubcatFilter))) passesDropdown = true;
+                    });
+                }
+                return passesChart && passesDropdown;
+            });
+
+            logicalItems.sort((a,b) => (b.dataLancamento ? new Date(b.dataLancamento) : 0) - (a.dataLancamento ? new Date(a.dataLancamento) : 0));
+
+            const totalItems = logicalItems.length; const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+            let totalReceitasReal = 0, totalDespesasReal = 0;
+
+            logicalItems.forEach(p => {
+                if(p.isSplitParent) {
+                    if(currentChartFilterType || currentTableSubcatFilter !== 'all') {
+                        p.children.forEach(c => {
+                            let matchC = true;
+                            if(currentChartFilterType === 'natureza' && c.natureza !== currentChartFilterValue) matchC = false;
+                            if(currentChartFilterType === 'subcat' && c.subcat !== currentChartFilterValue && c.cat !== currentChartFilterValue) matchC = false;
+                            if(currentTableSubcatFilter !== 'all' && c.subcat !== currentTableSubcatFilter && c.cat !== currentTableSubcatFilter) matchC = false;
+                            if(matchC) { if (c.natureza === 'Receita') totalReceitasReal += c.valor; else totalDespesasReal += c.valor; }
+                        });
+                    } else { if (p.natureza === 'Receita') totalReceitasReal += p.valor; else totalDespesasReal += p.valor; }
+                } else { if (p.natureza === 'Receita') totalReceitasReal += p.valor; else totalDespesasReal += p.valor; }
+            });
+
+            let finalBalanceStr = ""; const absSaldo = totalReceitasReal - totalDespesasReal;
+            if(totalReceitasReal > 0 && totalDespesasReal > 0) finalBalanceStr = `(Entradas: ${formatCurrency(totalReceitasReal)} | Saídas: ${formatCurrency(totalDespesasReal)} | Saldo Exibido: ${formatCurrency(absSaldo)})`;
+            else if (totalReceitasReal > 0) finalBalanceStr = `Entradas Exibidas: ${formatCurrency(totalReceitasReal)}`;
+            else finalBalanceStr = `Saídas Exibidas: ${formatCurrency(totalDespesasReal)}`;
+
+            document.getElementById('transactionsTotal').textContent = currentSelectedMonth === 'all' ? `${finalBalanceStr} (Total Geral)` : finalBalanceStr;
+
+            if(totalItems === 0) { tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-slate-400 font-medium">Nenhum lançamento encontrado para os filtros atuais.</td></tr>`; window.updateTablePagination(0, totalPages); return; }
+
+            const pageData = logicalItems.slice((currentPage - 1) * ITEMS_PER_PAGE, Math.min(currentPage * ITEMS_PER_PAGE, totalItems));
+
+            pageData.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = item.isSplitParent ? 'bg-slate-50 parent-row border-l-4 border-l-highlight font-medium shadow-sm' : 'hover:bg-slate-50 transition-colors';
+
+                const isReceita = item.natureza === 'Receita';
+                const natColor = isReceita ? 'bg-emerald-100 text-emerald-700' : (item.natureza === 'Fixo' ? 'bg-sky-100 text-highlight' : (item.natureza === 'Variável' ? 'bg-yellow-100 text-warning' : 'bg-slate-200 text-slate-500'));
+                const valColor = isReceita ? 'text-success' : (item.isSplitParent ? 'text-highlight' : 'text-slate-900');
+                const valStr = isReceita ? `+ ${formatCurrency(item.valor)}` : formatCurrency(item.valor);
+
+                let actionsHTML = `<button onclick="deleteItem('${item.id}')" title="Excluir" class="text-slate-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                if (item.isSplitParent) actionsHTML = `<button onclick="undoSplit('${item.id}')" class="text-slate-500 hover:text-orange-500 p-1 flex items-center gap-1 text-[10px] uppercase font-bold border border-slate-300 rounded px-2 bg-white transition-colors"><i data-lucide="rotate-ccw" class="w-3 h-3"></i> Desfazer</button>`;
+                else actionsHTML = `<button onclick="openSplitModal('${item.id}')" title="Decompor" class="text-slate-400 hover:text-highlight p-1 transition-colors"><i data-lucide="scissors" class="w-4 h-4"></i></button>` + actionsHTML;
+
+                row.innerHTML = `
+                    <td class="px-6 py-3 whitespace-nowrap text-slate-500">${formatBRDate(item.dataLancamento)}</td>
+                    <td class="px-6 py-3 whitespace-nowrap text-slate-700 font-medium">${item.mesAnoPagamento}</td>
+                    <td class="px-6 py-3 font-semibold text-slate-800" title="Origem: ${item.fileSource}">${item.desc}</td>
+                    <td class="px-6 py-3"><div class="text-slate-700 font-semibold text-xs">${item.cat}</div><div class="text-slate-400 text-[10px] uppercase tracking-wide">${item.subcat || ''}</div></td>
+                    <td class="px-6 py-3 text-center"><span class="px-2 py-1 rounded text-[10px] font-bold ${natColor}">${item.natureza}</span></td>
+                    <td class="px-6 py-3 text-center text-xs ${item.isParcela ? 'text-purple-600 font-bold' : 'text-slate-400'}">${item.parcelaStr}</td>
+                    <td class="px-6 py-3 text-right font-bold ${valColor}">${valStr}</td>
+                    <td class="px-4 py-3 text-center flex items-center justify-center gap-2">${actionsHTML}</td>`;
+                tbody.appendChild(row);
+
+                if (item.isSplitParent) {
+                    item.children.forEach(c => {
+                        let matchesFilter = false;
+                        if(currentChartFilterType || currentTableSubcatFilter !== 'all') {
+                            matchesFilter = true;
+                            if(currentChartFilterType === 'natureza' && c.natureza !== currentChartFilterValue) matchesFilter = false;
+                            if(currentChartFilterType === 'subcat' && c.subcat !== currentChartFilterValue && c.cat !== currentChartFilterValue) matchesFilter = false;
+                            if(currentTableSubcatFilter !== 'all' && c.subcat !== currentTableSubcatFilter && c.cat !== currentTableSubcatFilter) matchesFilter = false;
+                        }
+
+                        const childIsReceita = c.natureza === 'Receita';
+                        const childNatColor = childIsReceita ? 'bg-emerald-100 text-emerald-700' : (c.natureza === 'Fixo' ? 'bg-sky-100 text-highlight' : (c.natureza === 'Variável' ? 'bg-yellow-100 text-warning' : 'bg-slate-200 text-slate-500'));
+                        const highlightClass = matchesFilter ? 'bg-sky-50 border-l-4 border-l-warning' : 'border-l-4 border-l-sky-200';
+                        const childValStr = childIsReceita ? `+ ${formatCurrency(c.valor)}` : formatCurrency(c.valor);
+
+                        const cRow = document.createElement('tr');
+                        cRow.className = `child-row text-[13px] ${highlightClass}`;
+                        cRow.innerHTML = `
+                            <td class="px-6 py-2"></td><td class="px-6 py-2"></td>
+                            <td class="px-6 py-2 text-slate-600 flex items-center gap-2 pl-8"><i data-lucide="corner-down-right" class="w-4 h-4 text-slate-400"></i> ${c.desc}</td>
+                            <td class="px-6 py-2"><div class="text-slate-700 font-semibold text-xs">${c.cat}</div><div class="text-slate-400 text-[10px] uppercase tracking-wide">${c.subcat || ''}</div></td>
+                            <td class="px-6 py-2 text-center"><span class="px-2 py-1 rounded text-[9px] font-bold ${childNatColor}">${c.natureza}</span></td>
+                            <td class="px-6 py-2 text-center text-slate-400">-</td>
+                            <td class="px-6 py-2 text-right font-medium ${childIsReceita ? 'text-success' : 'text-slate-700'}">${childValStr}</td>
+                            <td class="px-4 py-2"></td>`;
+                        tbody.appendChild(cRow);
+                    });
+                }
+            });
+
+            window.updateTablePagination(totalItems, totalPages);
+            lucide.createIcons();
+        }
+
+        window.updateTablePagination = function(totalItems, totalPages) {
+            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+            const endIndex = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+            document.getElementById('tablePageInfo').textContent = totalItems > 0 ? `A exibir ${startIndex}-${endIndex} de ${totalItems}` : `Nenhum registo`;
+            document.getElementById('btnPrevPage').disabled = currentPage <= 1;
+            document.getElementById('btnNextPage').disabled = currentPage >= totalPages;
+        }
+
+        window.changeTablePage = function(delta) { currentPage += delta; renderTransactionsTable(); }
+
+        function renderFilesTable() {
+            const tbody = document.getElementById('tableFilesBody');
+            tbody.innerHTML = '';
+            const fileCounts = {};
+            db.forEach(item => { if(!item.isDecomposedPart) fileCounts[item.fileSource] = (fileCounts[item.fileSource] || 0) + 1; });
+            if(Object.keys(fileCounts).length === 0) { tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-4 text-center text-slate-400">Nenhum ficheiro importado.</td></tr>`; return; }
+
+            for(let fileName in fileCounts) {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50 transition-colors';
+                const icon = fileName === 'Lançamento Manual' ? '<i data-lucide="edit-3" class="w-4 h-4 inline text-slate-500 mr-2"></i>' : '<i data-lucide="file-text" class="w-4 h-4 inline text-highlight mr-2"></i>';
+                row.innerHTML = `
+                    <td class="px-6 py-3 font-medium text-slate-800">${icon}${fileName}</td>
+                    <td class="px-6 py-3 text-center text-slate-600">${fileCounts[fileName]} registos</td>
+                    <td class="px-6 py-3 text-right">
+                        ${fileName !== 'Lançamento Manual' ? `<button onclick="deleteFile('${fileName}')" class="text-slate-400 hover:text-red-500 flex items-center gap-1 ml-auto text-xs font-medium px-2 py-1 bg-red-50 hover:bg-red-100 rounded transition-colors"><i data-lucide="trash-2" class="w-3 h-3"></i> Apagar Ficheiro</button>` : ''}
+                    </td>`;
+                tbody.appendChild(row);
+            }
+            lucide.createIcons();
+        }
+
+        function renderRulesTable() {
+            const tbody = document.getElementById('tableRulesBody');
+            tbody.innerHTML = '';
+            rawRules.forEach((rule, idx) => {
+                const rawCat = rawCategories.find(c => c.id === rule.category_id);
+                if(!rawCat) return;
+
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-slate-50 transition-colors';
+                const natColor = rawCat.nature === 'Receita' ? 'text-success bg-emerald-50 border-emerald-200' : (rawCat.nature === 'Fixo' ? 'text-highlight bg-sky-50 border-sky-200' : (rawCat.nature === 'Variável' ? 'text-warning bg-yellow-50 border-yellow-200' : 'text-slate-500 bg-slate-100 border-slate-200'));
+
+                row.innerHTML = `
+                    <td class="px-4 py-2 font-semibold text-slate-800 text-xs">${rule.keywords.join(', ')}</td>
+                    <td class="px-4 py-2 text-slate-700 text-xs">${rawCat.macro}</td>
+                    <td class="px-4 py-2 text-slate-500 text-xs">${rawCat.micro}</td>
+                    <td class="px-4 py-2 text-center">
+                        <button onclick="removeRule('${rule.id}')" class="text-slate-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </td>`;
+                tbody.appendChild(row);
+            });
+            lucide.createIcons();
+        }
+
+        function renderCategoriasTable() {
+            const tbody = document.getElementById('tableCatsBody');
+            tbody.innerHTML = '';
+            if(rawCategories.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-4 text-center text-slate-400">Nenhuma categoria cadastrada.</td></tr>`; return; }
+
+            // Grouping by macro to render similarly
+            let grouped = {};
+            rawCategories.forEach(c => {
+                if(!grouped[c.macro]) grouped[c.macro] = [];
+                grouped[c.macro].push(c);
+            });
+
+            Object.keys(grouped).sort().forEach(macro => {
+                grouped[macro].sort((a,b) => a.micro.localeCompare(b.micro)).forEach(cat => {
+                    const natColor = cat.nature === 'Receita' ? 'text-success bg-emerald-50 border-emerald-200' : (cat.nature === 'Fixo' ? 'text-highlight bg-sky-50 border-sky-200' : 'text-warning bg-yellow-50 border-yellow-200');
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-slate-50 transition-colors';
+                    row.innerHTML = `
+                        <td class="px-4 py-3 font-semibold text-slate-800 text-sm">${cat.macro}</td>
+                        <td class="px-4 py-3 text-slate-600 text-sm">${cat.micro}</td>
+                        <td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded text-[10px] font-bold border ${natColor}">${cat.nature}</span></td>
+                        <td class="px-4 py-3 text-center">
+                            <button onclick="removeCategoria('${cat.id}')" class="text-slate-400 hover:text-red-500 p-1 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>`;
+                    tbody.appendChild(row);
+                });
+            });
+            lucide.createIcons();
+        }
+
+        window.switchTab = function(tabId) {
+            document.getElementById('view-dashboard').style.display = 'none';
+            document.getElementById('view-importacao').style.display = 'none';
+            document.getElementById('view-config').style.display = 'none';
+
+            ['dashboard', 'importacao', 'config'].forEach(t => {
+                document.getElementById(`tab-${t}`).className = 'tab-inactive pb-3 px-1 text-sm flex items-center gap-2 whitespace-nowrap';
+            });
+
+            document.getElementById(`view-${tabId}`).style.display = 'block';
+            document.getElementById(`tab-${tabId}`).className = 'tab-active pb-3 px-1 text-sm flex items-center gap-2 whitespace-nowrap';
+        }
+
+        // Window mapped logic
+        window.selectProfile = selectProfile;
+        window.logoutProfile = logoutProfile;
+        window.clearAllData = clearAllData;
+        window.deleteItem = deleteItem;
+        window.deleteFile = deleteFile;
+        window.reclassifyAll = reclassifyAll;
+        window.addCategoria = addCategoria;
+        window.removeCategoria = removeCategoria;
+        window.addRule = addRule;
+        window.removeRule = removeRule;
+        window.openSplitModal = openSplitModal;
+        window.closeSplitModal = closeSplitModal;
+        window.addSplitRow = addSplitRow;
+        window.removeSplitRow = removeSplitRow;
+        window.updateSplitValue = updateSplitValue;
+        window.updateSplitField = updateSplitField;
+        window.saveSplit = saveSplit;
+        window.undoSplit = undoSplit;
+        window.resetAndRenderDashboard = resetAndRenderDashboard;
+        window.clearMonthFilter = clearMonthFilter;
+        window.applyTableSubcatFilter = applyTableSubcatFilter;
+
+        window.onload = initApp;
+
     </script>
 </body>
 </html>

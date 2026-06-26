@@ -1,0 +1,13 @@
+# Credenciais locais de ambiente (Não enviar ao GitHub)
+config.js
+
+# Node / Logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Sistema Operativo
+.DS_Store
+Thumbs.db

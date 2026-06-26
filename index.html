@@ -32,6 +32,8 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Supabase JS v2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Configurações de Ambiente (config.js) -->
+    <script src="config.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body {
@@ -244,10 +246,10 @@
 
     <!-- Script Block for Initialization and Demo Data -->
     <script>
-        // Configurações de Conexão (Supabase & Backend)
-        const SUPABASE_URL = 'https://wpgrsalqbupakxaozozq.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'sb_publishable_v69jxc1IQlQrUJ6RHP-uHQ_nbsiUhIY'; 
-        const BACKEND_URL = 'http://localhost:3020';
+        // Configurações de Conexão (Supabase & Backend obtidos do config.js)
+        const SUPABASE_URL = window.ENV?.SUPABASE_URL || ''; 
+        const SUPABASE_ANON_KEY = window.ENV?.SUPABASE_ANON_KEY || ''; 
+        const BACKEND_URL = window.ENV?.BACKEND_URL || '';
 
         // Inicialização do Cliente Supabase
         let supabaseClient = null;
@@ -256,7 +258,7 @@
                 supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                 console.log("Cliente Supabase instanciado com sucesso:", SUPABASE_URL);
             } else {
-                console.warn("Chaves do Supabase não configuradas. Cliente não instanciado.");
+                console.warn("Chaves do Supabase não configuradas no config.js. Cliente não instanciado.");
             }
         } catch (error) {
             console.error("Erro ao instanciar o cliente Supabase:", error);
@@ -264,6 +266,12 @@
 
         // Função Global para Testar Conexão com o Backend Local
         async function testBackend() {
+            if (!BACKEND_URL) {
+                console.warn("BACKEND_URL não está configurada no config.js.");
+                alert("❌ Erro: BACKEND_URL não está configurada no config.js.");
+                updateStatusBadge(false);
+                return;
+            }
             console.log(`A testar conexão com o backend em ${BACKEND_URL}/health...`);
             try {
                 const response = await fetch(`${BACKEND_URL}/health`);
@@ -391,14 +399,18 @@
         // Executar testes de conexão automáticos na inicialização
         testSupabaseConnection();
         // Também testamos o backend silenciosamente no início para atualizar a badge inicial
-        (async () => {
-            try {
-                const response = await fetch(`${BACKEND_URL}/health`);
-                updateStatusBadge(response.ok);
-            } catch (e) {
-                updateStatusBadge(false);
-            }
-        })();
+        if (BACKEND_URL) {
+            (async () => {
+                try {
+                    const response = await fetch(`${BACKEND_URL}/health`);
+                    updateStatusBadge(response.ok);
+                } catch (e) {
+                    updateStatusBadge(false);
+                }
+            })();
+        } else {
+            updateStatusBadge(false);
+        }
     </script>
 </body>
 </html>
